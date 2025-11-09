@@ -7,7 +7,7 @@ pub const PFCP_VERSION: u8 = 1;
 pub const PFCP_PORT: u16 = 8805;
 
 /// PFCP Message Header (3GPP TS 29.244 Section 7.2.2)
-pub const PfcpHeader = packed struct {
+pub const PfcpHeader = struct {
     /// Spare bits (must be 0)
     spare: u4 = 0,
     /// Version (set to PFCP_VERSION)

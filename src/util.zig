@@ -13,7 +13,7 @@ pub fn generateSequenceNumber() u24 {
 /// Convert IPv4 address string to bytes
 pub fn parseIpv4(addr: []const u8) ![4]u8 {
     var result: [4]u8 = undefined;
-    var iter = std.mem.split(u8, addr, ".");
+    var iter = std.mem.splitScalar(u8, addr, '.');
     var i: usize = 0;
 
     while (iter.next()) |part| : (i += 1) {
