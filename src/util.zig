@@ -32,9 +32,9 @@ pub fn formatIpv4(addr: [4]u8, buf: []u8) ![]const u8 {
 
 /// Convert IPv6 address string to bytes
 pub fn parseIpv6(addr: []const u8) ![16]u8 {
-    var result: [16]u8 = undefined;
     // TODO: Implement full IPv6 parsing
     _ = addr;
+    const result: [16]u8 = undefined;
     return result;
 }
 
