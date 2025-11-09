@@ -181,26 +181,26 @@ zig build run-session_server
 - [x] Build system and project structure
 
 ### Phase 2: Binary Serialization
-- [ ] Message marshaling (encoding to binary)
-- [ ] Message unmarshaling (decoding from binary)
-- [ ] Proper handling of variable-length IEs
-- [ ] Endianness handling
-- [ ] Length field calculations
+- [x] Message marshaling (encoding to binary)
+- [x] Message unmarshaling (decoding from binary)
+- [x] Proper handling of variable-length IEs
+- [x] Endianness handling
+- [x] Length field calculations
 
 ### Phase 3: Advanced IEs
-- [ ] PDR (Packet Detection Rule) IE
-- [ ] FAR (Forwarding Action Rule) IE
-- [ ] QER (QoS Enforcement Rule) IE
-- [ ] URR (Usage Reporting Rule) IE
-- [ ] Grouped IEs support
-- [ ] Extended IE handling
+- [x] PDR (Packet Detection Rule) IE
+- [x] FAR (Forwarding Action Rule) IE
+- [x] QER (QoS Enforcement Rule) IE
+- [x] URR (Usage Reporting Rule) IE
+- [x] Grouped IEs support
+- [x] Extended IE handling
 
 ### Phase 4: Network Layer
-- [ ] UDP socket implementation
-- [ ] Message send/receive
-- [ ] Sequence number management
-- [ ] Retransmission handling
-- [ ] Connection management
+- [x] UDP socket implementation
+- [x] Message send/receive
+- [x] Sequence number management
+- [x] Retransmission handling
+- [x] Connection management
 
 ### Phase 5: Advanced Features
 - [ ] 5G-specific features (Network Slicing, S-NSSAI)

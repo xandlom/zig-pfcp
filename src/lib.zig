@@ -11,6 +11,7 @@ pub const ie = @import("ie.zig");
 pub const message = @import("message.zig");
 pub const marshal = @import("marshal.zig");
 pub const util = @import("util.zig");
+pub const net = @import("net.zig");
 
 // Re-export commonly used types
 pub const PfcpHeader = types.PfcpHeader;
@@ -30,6 +31,12 @@ pub const SessionEstablishmentResponse = message.SessionEstablishmentResponse;
 pub const Writer = marshal.Writer;
 pub const Reader = marshal.Reader;
 pub const MarshalError = marshal.MarshalError;
+
+// Re-export network types
+pub const PfcpSocket = net.PfcpSocket;
+pub const PfcpConnection = net.PfcpConnection;
+pub const SequenceManager = net.SequenceManager;
+pub const NetError = net.NetError;
 
 test {
     std.testing.refAllDecls(@This());
