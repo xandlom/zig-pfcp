@@ -9,6 +9,7 @@ const std = @import("std");
 pub const types = @import("types.zig");
 pub const ie = @import("ie.zig");
 pub const message = @import("message.zig");
+pub const marshal = @import("marshal.zig");
 pub const util = @import("util.zig");
 
 // Re-export commonly used types
@@ -24,6 +25,11 @@ pub const AssociationSetupRequest = message.AssociationSetupRequest;
 pub const AssociationSetupResponse = message.AssociationSetupResponse;
 pub const SessionEstablishmentRequest = message.SessionEstablishmentRequest;
 pub const SessionEstablishmentResponse = message.SessionEstablishmentResponse;
+
+// Re-export marshaling types
+pub const Writer = marshal.Writer;
+pub const Reader = marshal.Reader;
+pub const MarshalError = marshal.MarshalError;
 
 test {
     std.testing.refAllDecls(@This());
