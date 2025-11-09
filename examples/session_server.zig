@@ -31,7 +31,7 @@ pub fn main() !void {
 
     // Send Association Setup Response
     std.debug.print("Step 3: Send Association Setup Response (Accepted)\n", .{});
-    const assoc_resp = pfcp.AssociationSetupResponse.accepted(node_id, recovery);
+    _ = pfcp.AssociationSetupResponse.accepted(node_id, recovery);
     std.debug.print("   Cause: Request Accepted\n\n", .{});
 
     // Simulate receiving Session Establishment Request
