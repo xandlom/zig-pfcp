@@ -7,7 +7,7 @@ pub fn build(b: *std.Build) void {
     // Create the main library
     const lib = b.addLibrary(.{
         .name = "zig-pfcp",
-        .root_source_file = b.path("src/lib.zig"),
+        .root = b.path("src/lib.zig"),
         .target = target,
         .optimize = optimize,
         .kind = .static,
@@ -16,14 +16,14 @@ pub fn build(b: *std.Build) void {
 
     // Create the main module for use in other projects
     const pfcp_module = b.addModule("zig-pfcp", .{
-        .root_source_file = b.path("src/lib.zig"),
+        .root = b.path("src/lib.zig"),
         .target = target,
         .optimize = optimize,
     });
 
     // Tests
     const lib_tests = b.addTest(.{
-        .root_source_file = b.path("src/lib.zig"),
+        .root = b.path("src/lib.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -52,7 +52,7 @@ pub fn build(b: *std.Build) void {
 
         const exe = b.addExecutable(.{
             .name = example.name,
-            .root_source_file = b.path(example_path),
+            .root = b.path(example_path),
             .target = target,
             .optimize = optimize,
         });
@@ -81,7 +81,7 @@ pub fn build(b: *std.Build) void {
     // Documentation generation
     const docs = b.addLibrary(.{
         .name = "zig-pfcp",
-        .root_source_file = b.path("src/lib.zig"),
+        .root = b.path("src/lib.zig"),
         .target = target,
         .optimize = .Debug,
         .kind = .static,
