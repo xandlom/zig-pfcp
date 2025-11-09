@@ -548,8 +548,6 @@ pub fn encodeHeartbeatRequest(writer: *Writer, req: message.HeartbeatRequest, se
     header.sequence_number = sequence_number;
     try encodePfcpHeader(writer, header);
 
-    const payload_start = writer.pos;
-
     // Encode IEs
     try encodeRecoveryTimeStamp(writer, req.recovery_time_stamp);
 
