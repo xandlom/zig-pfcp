@@ -5,24 +5,27 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     // Create the main module
-    const pfcp_module = b.addModule("zig-pfcp", .{
-        .root_source_file = b.path("src/lib.zig"),
-    });
-
-    // Create the main library
-    const lib = b.addStaticLibrary(.{
-        .name = "zig-pfcp",
+    const pfcp_module = b.createModule(.{
         .root_source_file = b.path("src/lib.zig"),
         .target = target,
         .optimize = optimize,
+    });
+
+    // Create the main library
+    const lib = b.addLibrary(.{
+        .name = "zig-pfcp",
+        .linkage = .static,
+        .root_module = pfcp_module,
     });
     b.installArtifact(lib);
 
     // Tests
     const lib_tests = b.addTest(.{
-        .root_source_file = b.path("src/lib.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/lib.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     const run_lib_tests = b.addRunArtifact(lib_tests);
@@ -47,13 +50,17 @@ pub fn build(b: *std.Build) void {
             .{example.name},
         ) catch unreachable;
 
-        const exe = b.addExecutable(.{
-            .name = example.name,
+        const exe_module = b.createModule(.{
             .root_source_file = b.path(example_path),
             .target = target,
             .optimize = optimize,
         });
-        exe.root_module.addImport("zig-pfcp", pfcp_module);
+        exe_module.addImport("zig-pfcp", pfcp_module);
+
+        const exe = b.addExecutable(.{
+            .name = example.name,
+            .root_module = exe_module,
+        });
 
         const install_exe = b.addInstallArtifact(exe, .{});
 
@@ -76,11 +83,16 @@ pub fn build(b: *std.Build) void {
     }
 
     // Documentation generation
-    const docs = b.addStaticLibrary(.{
-        .name = "zig-pfcp",
+    const docs_module = b.createModule(.{
         .root_source_file = b.path("src/lib.zig"),
         .target = target,
         .optimize = .Debug,
+    });
+
+    const docs = b.addLibrary(.{
+        .name = "zig-pfcp",
+        .linkage = .static,
+        .root_module = docs_module,
     });
 
     const install_docs = b.addInstallDirectory(.{
