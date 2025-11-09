@@ -5,11 +5,12 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     // Create the main library
-    const lib = b.addStaticLibrary(.{
+    const lib = b.addLibrary(.{
         .name = "zig-pfcp",
         .root_source_file = b.path("src/lib.zig"),
         .target = target,
         .optimize = optimize,
+        .kind = .static,
     });
     b.installArtifact(lib);
 
@@ -78,11 +79,12 @@ pub fn build(b: *std.Build) void {
     }
 
     // Documentation generation
-    const docs = b.addStaticLibrary(.{
+    const docs = b.addLibrary(.{
         .name = "zig-pfcp",
         .root_source_file = b.path("src/lib.zig"),
         .target = target,
         .optimize = .Debug,
+        .kind = .static,
     });
 
     const install_docs = b.addInstallDirectory(.{
