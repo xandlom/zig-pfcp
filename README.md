@@ -52,7 +52,7 @@ Add this to your `build.zig.zon`:
 
 ```zig
 .dependencies = .{
-    .@"zig-pfcp" = .{
+    .zig_pfcp = .{
         .url = "https://github.com/xandlom/zig-pfcp/archive/<commit-hash>.tar.gz",
         .hash = "<hash>",
     },
@@ -62,7 +62,7 @@ Add this to your `build.zig.zon`:
 Then in your `build.zig`:
 
 ```zig
-const pfcp = b.dependency("zig-pfcp", .{
+const pfcp = b.dependency("zig_pfcp", .{
     .target = target,
     .optimize = optimize,
 });

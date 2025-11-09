@@ -1,5 +1,5 @@
 .{
-    .name = "zig-pfcp",
+    .name = "zig_pfcp",
     .version = "0.1.0",
     .minimum_zig_version = "0.15.2",
 
