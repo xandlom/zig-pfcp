@@ -19,7 +19,7 @@ pub fn main() !void {
     // Create an Association Setup Request
     std.debug.print("2. Association Setup Request\n", .{});
     const node_id = pfcp.ie.NodeId.initIpv4([_]u8{ 192, 168, 1, 1 });
-    const assoc_req = pfcp.AssociationSetupRequest.init(node_id, recovery);
+    _ = pfcp.AssociationSetupRequest.init(node_id, recovery);
     std.debug.print("   Node ID: IPv4\n\n", .{});
 
     // Create an Association Setup Response (accepted)
