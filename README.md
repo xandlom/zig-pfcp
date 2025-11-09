@@ -203,11 +203,11 @@ zig build run-session_server
 - [x] Connection management
 
 ### Phase 5: Advanced Features
-- [ ] 5G-specific features (Network Slicing, S-NSSAI)
-- [ ] QoS flow handling
-- [ ] Usage reporting and quotas
-- [ ] Multi-access support
-- [ ] Ethernet PDU session support
+- [x] 5G-specific features (Network Slicing, S-NSSAI)
+- [x] QoS flow handling
+- [x] Usage reporting and quotas
+- [x] Multi-access support
+- [x] Ethernet PDU session support
 
 ### Phase 6: Production Readiness
 - [ ] Comprehensive test coverage
