@@ -720,6 +720,389 @@ pub const CreateURR = struct {
     }
 };
 
+// ============================================================================
+// Phase 5: Advanced 5G Features
+// ============================================================================
+
+/// S-NSSAI (Single Network Slice Selection Assistance Information) IE (3GPP TS 29.244 Section 8.2.136)
+/// Used for network slicing in 5G
+pub const SNSSAI = struct {
+    sst: u8, // Slice/Service Type
+    sd: ?u24 = null, // Slice Differentiator (optional)
+
+    pub fn init(sst: u8) SNSSAI {
+        return .{ .sst = sst };
+    }
+
+    pub fn initWithSd(sst: u8, sd: u24) SNSSAI {
+        return .{ .sst = sst, .sd = sd };
+    }
+
+    /// eMBB (Enhanced Mobile Broadband) slice
+    pub fn embb() SNSSAI {
+        return .{ .sst = 1 };
+    }
+
+    /// URLLC (Ultra-Reliable Low Latency Communications) slice
+    pub fn urllc() SNSSAI {
+        return .{ .sst = 2 };
+    }
+
+    /// MIoT (Massive IoT) slice
+    pub fn miot() SNSSAI {
+        return .{ .sst = 3 };
+    }
+};
+
+/// PDU Session Type IE (3GPP TS 29.244 Section 8.2.125)
+pub const PduSessionType = struct {
+    pdu_session_type: types.PduSessionType,
+
+    pub fn init(pdu_session_type: types.PduSessionType) PduSessionType {
+        return .{ .pdu_session_type = pdu_session_type };
+    }
+
+    pub fn ipv4() PduSessionType {
+        return .{ .pdu_session_type = .ipv4 };
+    }
+
+    pub fn ipv6() PduSessionType {
+        return .{ .pdu_session_type = .ipv6 };
+    }
+
+    pub fn ipv4v6() PduSessionType {
+        return .{ .pdu_session_type = .ipv4v6 };
+    }
+
+    pub fn ethernet() PduSessionType {
+        return .{ .pdu_session_type = .ethernet };
+    }
+
+    pub fn unstructured() PduSessionType {
+        return .{ .pdu_session_type = .unstructured };
+    }
+};
+
+/// QFI (QoS Flow Identifier) IE (3GPP TS 29.244 Section 8.2.89)
+pub const QFI = struct {
+    qfi: u6, // QoS Flow Identifier (6 bits)
+
+    pub fn init(qfi: u6) QFI {
+        return .{ .qfi = qfi };
+    }
+};
+
+/// Volume Quota IE (3GPP TS 29.244 Section 8.2.73)
+pub const VolumeQuota = struct {
+    flags: packed struct {
+        tovol: bool = false, // Total Volume
+        ulvol: bool = false, // Uplink Volume
+        dlvol: bool = false, // Downlink Volume
+        _spare: u5 = 0,
+    },
+    total_volume: ?u64 = null,
+    uplink_volume: ?u64 = null,
+    downlink_volume: ?u64 = null,
+
+    pub fn initTotal(total: u64) VolumeQuota {
+        return .{
+            .flags = .{ .tovol = true },
+            .total_volume = total,
+        };
+    }
+
+    pub fn initUplinkDownlink(ul: u64, dl: u64) VolumeQuota {
+        return .{
+            .flags = .{ .ulvol = true, .dlvol = true },
+            .uplink_volume = ul,
+            .downlink_volume = dl,
+        };
+    }
+
+    pub fn initAll(total: u64, ul: u64, dl: u64) VolumeQuota {
+        return .{
+            .flags = .{ .tovol = true, .ulvol = true, .dlvol = true },
+            .total_volume = total,
+            .uplink_volume = ul,
+            .downlink_volume = dl,
+        };
+    }
+};
+
+/// Time Quota IE (3GPP TS 29.244 Section 8.2.74)
+pub const TimeQuota = struct {
+    quota: u32, // seconds
+
+    pub fn init(quota: u32) TimeQuota {
+        return .{ .quota = quota };
+    }
+};
+
+/// RAT Type IE (3GPP TS 29.244 Section 8.2.157)
+pub const RatTypeIE = struct {
+    rat_type: types.RatType,
+
+    pub fn init(rat_type: types.RatType) RatTypeIE {
+        return .{ .rat_type = rat_type };
+    }
+
+    pub fn nr() RatTypeIE {
+        return .{ .rat_type = .nr };
+    }
+
+    pub fn eutran() RatTypeIE {
+        return .{ .rat_type = .eutran };
+    }
+
+    pub fn wlan() RatTypeIE {
+        return .{ .rat_type = .wlan };
+    }
+};
+
+/// Ethernet PDU Session Information IE (3GPP TS 29.244 Section 8.2.142)
+pub const EthernetPduSessionInformation = struct {
+    flags: packed struct {
+        ethi: bool = false, // Ethernet Header present in uplink
+        _spare: u7 = 0,
+    },
+
+    pub fn init() EthernetPduSessionInformation {
+        return .{ .flags = .{} };
+    }
+
+    pub fn withEthernetHeader() EthernetPduSessionInformation {
+        return .{ .flags = .{ .ethi = true } };
+    }
+};
+
+/// MAC Address IE (3GPP TS 29.244 Section 8.2.143)
+pub const MacAddress = struct {
+    flags: packed struct {
+        sour: bool = false, // Source MAC address
+        dest: bool = false, // Destination MAC address
+        usuo: bool = false, // Upper Source MAC address
+        udes: bool = false, // Upper Destination MAC address
+        _spare: u4 = 0,
+    },
+    source_mac: ?[6]u8 = null,
+    dest_mac: ?[6]u8 = null,
+    upper_source_mac: ?[6]u8 = null,
+    upper_dest_mac: ?[6]u8 = null,
+
+    pub fn initSource(mac: [6]u8) MacAddress {
+        return .{
+            .flags = .{ .sour = true },
+            .source_mac = mac,
+        };
+    }
+
+    pub fn initDest(mac: [6]u8) MacAddress {
+        return .{
+            .flags = .{ .dest = true },
+            .dest_mac = mac,
+        };
+    }
+
+    pub fn initSourceDest(src: [6]u8, dst: [6]u8) MacAddress {
+        return .{
+            .flags = .{ .sour = true, .dest = true },
+            .source_mac = src,
+            .dest_mac = dst,
+        };
+    }
+};
+
+/// C-TAG IE (3GPP TS 29.244 Section 8.2.144)
+/// Customer VLAN Tag
+pub const CTag = struct {
+    flags: packed struct {
+        pcp: bool = false, // Priority Code Point present
+        dei: bool = false, // Drop Eligible Indicator present
+        vid: bool = false, // VLAN ID present
+        _spare: u5 = 0,
+    },
+    cvlan_pcp: ?u3 = null,
+    cvlan_dei: ?u1 = null,
+    cvlan_vid: ?u12 = null,
+
+    pub fn init(vid: u12) CTag {
+        return .{
+            .flags = .{ .vid = true },
+            .cvlan_vid = vid,
+        };
+    }
+
+    pub fn initFull(pcp: u3, dei: u1, vid: u12) CTag {
+        return .{
+            .flags = .{ .pcp = true, .dei = true, .vid = true },
+            .cvlan_pcp = pcp,
+            .cvlan_dei = dei,
+            .cvlan_vid = vid,
+        };
+    }
+};
+
+/// S-TAG IE (3GPP TS 29.244 Section 8.2.145)
+/// Service VLAN Tag
+pub const STag = struct {
+    flags: packed struct {
+        pcp: bool = false, // Priority Code Point present
+        dei: bool = false, // Drop Eligible Indicator present
+        vid: bool = false, // VLAN ID present
+        _spare: u5 = 0,
+    },
+    svlan_pcp: ?u3 = null,
+    svlan_dei: ?u1 = null,
+    svlan_vid: ?u12 = null,
+
+    pub fn init(vid: u12) STag {
+        return .{
+            .flags = .{ .vid = true },
+            .svlan_vid = vid,
+        };
+    }
+
+    pub fn initFull(pcp: u3, dei: u1, vid: u12) STag {
+        return .{
+            .flags = .{ .pcp = true, .dei = true, .vid = true },
+            .svlan_pcp = pcp,
+            .svlan_dei = dei,
+            .svlan_vid = vid,
+        };
+    }
+};
+
+/// Ethertype IE (3GPP TS 29.244 Section 8.2.146)
+pub const Ethertype = struct {
+    ethertype: u16,
+
+    pub fn init(ethertype: u16) Ethertype {
+        return .{ .ethertype = ethertype };
+    }
+
+    /// IPv4 (0x0800)
+    pub fn ipv4() Ethertype {
+        return .{ .ethertype = 0x0800 };
+    }
+
+    /// IPv6 (0x86DD)
+    pub fn ipv6() Ethertype {
+        return .{ .ethertype = 0x86DD };
+    }
+
+    /// ARP (0x0806)
+    pub fn arp() Ethertype {
+        return .{ .ethertype = 0x0806 };
+    }
+
+    /// VLAN (0x8100)
+    pub fn vlan() Ethertype {
+        return .{ .ethertype = 0x8100 };
+    }
+};
+
+/// Ethernet Packet Filter IE (3GPP TS 29.244 Section 8.2.139)
+/// Grouped IE for filtering Ethernet packets
+pub const EthernetPacketFilter = struct {
+    ethernet_filter_id: ?u32 = null,
+    ethernet_filter_properties: ?u8 = null,
+    mac_address: ?MacAddress = null,
+    ethertype: ?Ethertype = null,
+    c_tag: ?CTag = null,
+    s_tag: ?STag = null,
+    sdf_filter: ?SDFFilter = null,
+
+    pub fn init() EthernetPacketFilter {
+        return .{};
+    }
+
+    pub fn withMacAddress(self: EthernetPacketFilter, mac: MacAddress) EthernetPacketFilter {
+        var result = self;
+        result.mac_address = mac;
+        return result;
+    }
+
+    pub fn withEthertype(self: EthernetPacketFilter, etype: Ethertype) EthernetPacketFilter {
+        var result = self;
+        result.ethertype = etype;
+        return result;
+    }
+
+    pub fn withCTag(self: EthernetPacketFilter, ctag: CTag) EthernetPacketFilter {
+        var result = self;
+        result.c_tag = ctag;
+        return result;
+    }
+
+    pub fn withSTag(self: EthernetPacketFilter, stag: STag) EthernetPacketFilter {
+        var result = self;
+        result.s_tag = stag;
+        return result;
+    }
+};
+
+/// QoS Information IE (3GPP TS 29.244 Section 8.2.152)
+/// Grouped IE for QoS Flow handling
+pub const QosInformation = struct {
+    qfi: ?QFI = null,
+    qos_priority_level: ?u8 = null,
+    averaging_window: ?u32 = null,
+    guaranteed_bitrate: ?GBR = null,
+    maximum_bitrate: ?MBR = null,
+
+    pub fn init(qfi: QFI) QosInformation {
+        return .{ .qfi = qfi };
+    }
+
+    pub fn withPriorityLevel(self: QosInformation, priority: u8) QosInformation {
+        var result = self;
+        result.qos_priority_level = priority;
+        return result;
+    }
+
+    pub fn withBitrates(self: QosInformation, gbr: GBR, mbr: MBR) QosInformation {
+        var result = self;
+        result.guaranteed_bitrate = gbr;
+        result.maximum_bitrate = mbr;
+        return result;
+    }
+};
+
+/// Create Traffic Endpoint IE (3GPP TS 29.244 Section 8.2.127)
+/// Grouped IE for multi-access PDU session support
+pub const CreateTrafficEndpoint = struct {
+    traffic_endpoint_id: u8,
+    f_teid: ?FTEID = null,
+    network_instance: ?NetworkInstance = null,
+    ue_ip_address: ?UEIPAddress = null,
+    ethernet_pdu_session_information: ?EthernetPduSessionInformation = null,
+    framed_route: ?[]const u8 = null,
+    framed_routing: ?u32 = null,
+    framed_ipv6_route: ?[]const u8 = null,
+
+    pub fn init(traffic_endpoint_id: u8) CreateTrafficEndpoint {
+        return .{ .traffic_endpoint_id = traffic_endpoint_id };
+    }
+
+    pub fn withFTeid(self: CreateTrafficEndpoint, f_teid: FTEID) CreateTrafficEndpoint {
+        var result = self;
+        result.f_teid = f_teid;
+        return result;
+    }
+
+    pub fn withUeIp(self: CreateTrafficEndpoint, ue_ip: UEIPAddress) CreateTrafficEndpoint {
+        var result = self;
+        result.ue_ip_address = ue_ip;
+        return result;
+    }
+
+    pub fn withEthernetInfo(self: CreateTrafficEndpoint, eth_info: EthernetPduSessionInformation) CreateTrafficEndpoint {
+        var result = self;
+        result.ethernet_pdu_session_information = eth_info;
+        return result;
+    }
+};
+
 test "Recovery timestamp conversion" {
     const unix_time: i64 = 1609459200; // 2021-01-01 00:00:00 UTC
     const recovery = RecoveryTimeStamp.fromUnixTime(unix_time);
@@ -914,4 +1297,249 @@ test "Outer header creation for IPv4 and IPv6" {
     try std.testing.expect(!ohc_v6.flags.gtpu_udp_ipv4);
     try std.testing.expect(ohc_v6.flags.gtpu_udp_ipv6);
     try std.testing.expectEqual(@as(u32, 0x87654321), ohc_v6.teid.?);
+}
+
+// ============================================================================
+// Phase 5 Tests
+// ============================================================================
+
+test "S-NSSAI initialization" {
+    // Basic SST only
+    const snssai_basic = SNSSAI.init(1);
+    try std.testing.expectEqual(@as(u8, 1), snssai_basic.sst);
+    try std.testing.expect(snssai_basic.sd == null);
+
+    // With SD
+    const snssai_with_sd = SNSSAI.initWithSd(2, 0x123456);
+    try std.testing.expectEqual(@as(u8, 2), snssai_with_sd.sst);
+    try std.testing.expectEqual(@as(u24, 0x123456), snssai_with_sd.sd.?);
+
+    // Standard slices
+    const embb = SNSSAI.embb();
+    try std.testing.expectEqual(@as(u8, 1), embb.sst);
+
+    const urllc = SNSSAI.urllc();
+    try std.testing.expectEqual(@as(u8, 2), urllc.sst);
+
+    const miot = SNSSAI.miot();
+    try std.testing.expectEqual(@as(u8, 3), miot.sst);
+}
+
+test "PDU Session Type" {
+    const ipv4_session = PduSessionType.ipv4();
+    try std.testing.expectEqual(types.PduSessionType.ipv4, ipv4_session.pdu_session_type);
+
+    const ipv6_session = PduSessionType.ipv6();
+    try std.testing.expectEqual(types.PduSessionType.ipv6, ipv6_session.pdu_session_type);
+
+    const ipv4v6_session = PduSessionType.ipv4v6();
+    try std.testing.expectEqual(types.PduSessionType.ipv4v6, ipv4v6_session.pdu_session_type);
+
+    const ethernet_session = PduSessionType.ethernet();
+    try std.testing.expectEqual(types.PduSessionType.ethernet, ethernet_session.pdu_session_type);
+
+    const unstructured_session = PduSessionType.unstructured();
+    try std.testing.expectEqual(types.PduSessionType.unstructured, unstructured_session.pdu_session_type);
+}
+
+test "QFI (QoS Flow Identifier)" {
+    const qfi = QFI.init(9);
+    try std.testing.expectEqual(@as(u6, 9), qfi.qfi);
+
+    // Valid range is 0-63 for 6 bits
+    const max_qfi = QFI.init(63);
+    try std.testing.expectEqual(@as(u6, 63), max_qfi.qfi);
+}
+
+test "Volume Quota" {
+    // Total volume only
+    const quota_total = VolumeQuota.initTotal(5_000_000_000); // 5 GB
+    try std.testing.expect(quota_total.flags.tovol);
+    try std.testing.expect(!quota_total.flags.ulvol);
+    try std.testing.expect(!quota_total.flags.dlvol);
+    try std.testing.expectEqual(@as(u64, 5_000_000_000), quota_total.total_volume.?);
+
+    // UL/DL volumes
+    const quota_ul_dl = VolumeQuota.initUplinkDownlink(1_000_000_000, 2_000_000_000);
+    try std.testing.expect(!quota_ul_dl.flags.tovol);
+    try std.testing.expect(quota_ul_dl.flags.ulvol);
+    try std.testing.expect(quota_ul_dl.flags.dlvol);
+    try std.testing.expectEqual(@as(u64, 1_000_000_000), quota_ul_dl.uplink_volume.?);
+    try std.testing.expectEqual(@as(u64, 2_000_000_000), quota_ul_dl.downlink_volume.?);
+
+    // All three
+    const quota_all = VolumeQuota.initAll(5_000_000_000, 2_000_000_000, 3_000_000_000);
+    try std.testing.expect(quota_all.flags.tovol);
+    try std.testing.expect(quota_all.flags.ulvol);
+    try std.testing.expect(quota_all.flags.dlvol);
+    try std.testing.expectEqual(@as(u64, 5_000_000_000), quota_all.total_volume.?);
+    try std.testing.expectEqual(@as(u64, 2_000_000_000), quota_all.uplink_volume.?);
+    try std.testing.expectEqual(@as(u64, 3_000_000_000), quota_all.downlink_volume.?);
+}
+
+test "Time Quota" {
+    const quota = TimeQuota.init(3600); // 1 hour
+    try std.testing.expectEqual(@as(u32, 3600), quota.quota);
+}
+
+test "RAT Type" {
+    const nr_rat = RatTypeIE.nr();
+    try std.testing.expectEqual(types.RatType.nr, nr_rat.rat_type);
+
+    const eutran_rat = RatTypeIE.eutran();
+    try std.testing.expectEqual(types.RatType.eutran, eutran_rat.rat_type);
+
+    const wlan_rat = RatTypeIE.wlan();
+    try std.testing.expectEqual(types.RatType.wlan, wlan_rat.rat_type);
+}
+
+test "Ethernet PDU Session Information" {
+    const basic_info = EthernetPduSessionInformation.init();
+    try std.testing.expect(!basic_info.flags.ethi);
+
+    const with_header = EthernetPduSessionInformation.withEthernetHeader();
+    try std.testing.expect(with_header.flags.ethi);
+}
+
+test "MAC Address" {
+    const src_mac = [_]u8{ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 };
+    const dst_mac = [_]u8{ 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF };
+
+    const mac_src = MacAddress.initSource(src_mac);
+    try std.testing.expect(mac_src.flags.sour);
+    try std.testing.expect(!mac_src.flags.dest);
+    try std.testing.expectEqualSlices(u8, &src_mac, &mac_src.source_mac.?);
+
+    const mac_dst = MacAddress.initDest(dst_mac);
+    try std.testing.expect(!mac_dst.flags.sour);
+    try std.testing.expect(mac_dst.flags.dest);
+    try std.testing.expectEqualSlices(u8, &dst_mac, &mac_dst.dest_mac.?);
+
+    const mac_both = MacAddress.initSourceDest(src_mac, dst_mac);
+    try std.testing.expect(mac_both.flags.sour);
+    try std.testing.expect(mac_both.flags.dest);
+    try std.testing.expectEqualSlices(u8, &src_mac, &mac_both.source_mac.?);
+    try std.testing.expectEqualSlices(u8, &dst_mac, &mac_both.dest_mac.?);
+}
+
+test "C-TAG (Customer VLAN Tag)" {
+    const vlan_id: u12 = 100;
+    const ctag_basic = CTag.init(vlan_id);
+    try std.testing.expect(!ctag_basic.flags.pcp);
+    try std.testing.expect(!ctag_basic.flags.dei);
+    try std.testing.expect(ctag_basic.flags.vid);
+    try std.testing.expectEqual(vlan_id, ctag_basic.cvlan_vid.?);
+
+    const pcp: u3 = 5;
+    const dei: u1 = 1;
+    const ctag_full = CTag.initFull(pcp, dei, vlan_id);
+    try std.testing.expect(ctag_full.flags.pcp);
+    try std.testing.expect(ctag_full.flags.dei);
+    try std.testing.expect(ctag_full.flags.vid);
+    try std.testing.expectEqual(pcp, ctag_full.cvlan_pcp.?);
+    try std.testing.expectEqual(dei, ctag_full.cvlan_dei.?);
+    try std.testing.expectEqual(vlan_id, ctag_full.cvlan_vid.?);
+}
+
+test "S-TAG (Service VLAN Tag)" {
+    const vlan_id: u12 = 200;
+    const stag_basic = STag.init(vlan_id);
+    try std.testing.expect(!stag_basic.flags.pcp);
+    try std.testing.expect(!stag_basic.flags.dei);
+    try std.testing.expect(stag_basic.flags.vid);
+    try std.testing.expectEqual(vlan_id, stag_basic.svlan_vid.?);
+
+    const pcp: u3 = 7;
+    const dei: u1 = 0;
+    const stag_full = STag.initFull(pcp, dei, vlan_id);
+    try std.testing.expect(stag_full.flags.pcp);
+    try std.testing.expect(stag_full.flags.dei);
+    try std.testing.expect(stag_full.flags.vid);
+    try std.testing.expectEqual(pcp, stag_full.svlan_pcp.?);
+    try std.testing.expectEqual(dei, stag_full.svlan_dei.?);
+    try std.testing.expectEqual(vlan_id, stag_full.svlan_vid.?);
+}
+
+test "Ethertype" {
+    const eth_ipv4 = Ethertype.ipv4();
+    try std.testing.expectEqual(@as(u16, 0x0800), eth_ipv4.ethertype);
+
+    const eth_ipv6 = Ethertype.ipv6();
+    try std.testing.expectEqual(@as(u16, 0x86DD), eth_ipv6.ethertype);
+
+    const eth_arp = Ethertype.arp();
+    try std.testing.expectEqual(@as(u16, 0x0806), eth_arp.ethertype);
+
+    const eth_vlan = Ethertype.vlan();
+    try std.testing.expectEqual(@as(u16, 0x8100), eth_vlan.ethertype);
+
+    const custom = Ethertype.init(0x88CC); // LLDP
+    try std.testing.expectEqual(@as(u16, 0x88CC), custom.ethertype);
+}
+
+test "Ethernet Packet Filter with builder pattern" {
+    const src_mac = [_]u8{ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 };
+    const dst_mac = [_]u8{ 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF };
+    const mac_filter = MacAddress.initSourceDest(src_mac, dst_mac);
+
+    const filter = EthernetPacketFilter.init()
+        .withMacAddress(mac_filter)
+        .withEthertype(Ethertype.ipv4())
+        .withCTag(CTag.init(100));
+
+    try std.testing.expect(filter.mac_address != null);
+    try std.testing.expect(filter.ethertype != null);
+    try std.testing.expect(filter.c_tag != null);
+    try std.testing.expectEqual(@as(u16, 0x0800), filter.ethertype.?.ethertype);
+    try std.testing.expectEqual(@as(u12, 100), filter.c_tag.?.cvlan_vid.?);
+}
+
+test "QoS Information with builder pattern" {
+    const qfi = QFI.init(9);
+    const priority: u8 = 5;
+    const gbr = GBR.init(50_000_000, 100_000_000); // 50 Mbps UL, 100 Mbps DL
+    const mbr = MBR.init(100_000_000, 200_000_000); // 100 Mbps UL, 200 Mbps DL
+
+    const qos_info = QosInformation.init(qfi)
+        .withPriorityLevel(priority)
+        .withBitrates(gbr, mbr);
+
+    try std.testing.expect(qos_info.qfi != null);
+    try std.testing.expectEqual(@as(u6, 9), qos_info.qfi.?.qfi);
+    try std.testing.expect(qos_info.qos_priority_level != null);
+    try std.testing.expectEqual(priority, qos_info.qos_priority_level.?);
+    try std.testing.expect(qos_info.guaranteed_bitrate != null);
+    try std.testing.expect(qos_info.maximum_bitrate != null);
+    try std.testing.expectEqual(@as(u64, 50_000_000), qos_info.guaranteed_bitrate.?.ul_gbr);
+    try std.testing.expectEqual(@as(u64, 100_000_000), qos_info.guaranteed_bitrate.?.dl_gbr);
+    try std.testing.expectEqual(@as(u64, 100_000_000), qos_info.maximum_bitrate.?.ul_mbr);
+    try std.testing.expectEqual(@as(u64, 200_000_000), qos_info.maximum_bitrate.?.dl_mbr);
+}
+
+test "Create Traffic Endpoint for multi-access" {
+    const endpoint_id: u8 = 1;
+    const f_teid = FTEID.initV4(0x12345678, [_]u8{ 10, 0, 0, 1 });
+    const ue_ip = UEIPAddress.initIpv4([_]u8{ 172, 16, 0, 1 }, false);
+
+    const endpoint = CreateTrafficEndpoint.init(endpoint_id)
+        .withFTeid(f_teid)
+        .withUeIp(ue_ip);
+
+    try std.testing.expectEqual(endpoint_id, endpoint.traffic_endpoint_id);
+    try std.testing.expect(endpoint.f_teid != null);
+    try std.testing.expect(endpoint.ue_ip_address != null);
+    try std.testing.expect(endpoint.f_teid.?.flags.v4);
+    try std.testing.expectEqual(@as(u32, 0x12345678), endpoint.f_teid.?.teid);
+}
+
+test "Create Traffic Endpoint for Ethernet" {
+    const endpoint_id: u8 = 2;
+    const eth_info = EthernetPduSessionInformation.withEthernetHeader();
+
+    const endpoint = CreateTrafficEndpoint.init(endpoint_id)
+        .withEthernetInfo(eth_info);
+
+    try std.testing.expectEqual(endpoint_id, endpoint.traffic_endpoint_id);
+    try std.testing.expect(endpoint.ethernet_pdu_session_information != null);
+    try std.testing.expect(endpoint.ethernet_pdu_session_information.?.flags.ethi);
 }
