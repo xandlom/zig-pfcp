@@ -12,6 +12,8 @@ pub const message = @import("message.zig");
 pub const marshal = @import("marshal.zig");
 pub const util = @import("util.zig");
 pub const net = @import("net.zig");
+pub const compare = @import("compare.zig");
+pub const pcap = @import("pcap.zig");
 
 // Re-export commonly used types
 pub const PfcpHeader = types.PfcpHeader;
