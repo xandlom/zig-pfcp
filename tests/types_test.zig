@@ -1,6 +1,7 @@
 // Comprehensive tests for types module
 const std = @import("std");
-const types = @import("../src/types.zig");
+const pfcp = @import("zig-pfcp");
+const types = pfcp.types;
 
 test "PFCP version constant" {
     try std.testing.expectEqual(@as(u8, 1), types.PFCP_VERSION);

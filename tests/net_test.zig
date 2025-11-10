@@ -1,7 +1,8 @@
 // Comprehensive tests for net module
 const std = @import("std");
-const net_module = @import("../src/net.zig");
-const types = @import("../src/types.zig");
+const pfcp = @import("zig-pfcp");
+const net_module = pfcp.net;
+const types = pfcp.types;
 
 test "NetError - all error types" {
     const errors = [_]type{
@@ -23,7 +24,7 @@ test "Constants - MAX_RETRANSMISSIONS" {
 }
 
 test "SequenceManager - initialization" {
-    var seq_mgr = net_module.SequenceManager.init();
+    const seq_mgr = net_module.SequenceManager.init();
 
     try std.testing.expectEqual(@as(u24, 0), seq_mgr.current);
 }

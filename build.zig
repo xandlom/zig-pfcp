@@ -14,14 +14,6 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(lib);
 
     // Tests - comprehensive test suite
-    const test_files = [_][]const u8{
-        "tests/types_test.zig",
-        "tests/ie_test.zig",
-        "tests/message_test.zig",
-        "tests/marshal_test.zig",
-        "tests/net_test.zig",
-    };
-
     const test_step = b.step("test", "Run all tests");
 
     // Add library tests
@@ -34,9 +26,57 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_lib_tests.step);
 
     // Add individual test files
-    inline for (test_files) |test_file| {
+    {
         const test_exe = b.addTest(.{
-            .root_source_file = b.path(test_file),
+            .root_source_file = b.path("tests/types_test.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        test_exe.root_module.addAnonymousImport("zig-pfcp", .{
+            .root_source_file = b.path("src/lib.zig"),
+        });
+        const run_test = b.addRunArtifact(test_exe);
+        test_step.dependOn(&run_test.step);
+    }
+    {
+        const test_exe = b.addTest(.{
+            .root_source_file = b.path("tests/ie_test.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        test_exe.root_module.addAnonymousImport("zig-pfcp", .{
+            .root_source_file = b.path("src/lib.zig"),
+        });
+        const run_test = b.addRunArtifact(test_exe);
+        test_step.dependOn(&run_test.step);
+    }
+    {
+        const test_exe = b.addTest(.{
+            .root_source_file = b.path("tests/message_test.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        test_exe.root_module.addAnonymousImport("zig-pfcp", .{
+            .root_source_file = b.path("src/lib.zig"),
+        });
+        const run_test = b.addRunArtifact(test_exe);
+        test_step.dependOn(&run_test.step);
+    }
+    {
+        const test_exe = b.addTest(.{
+            .root_source_file = b.path("tests/marshal_test.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        test_exe.root_module.addAnonymousImport("zig-pfcp", .{
+            .root_source_file = b.path("src/lib.zig"),
+        });
+        const run_test = b.addRunArtifact(test_exe);
+        test_step.dependOn(&run_test.step);
+    }
+    {
+        const test_exe = b.addTest(.{
+            .root_source_file = b.path("tests/net_test.zig"),
             .target = target,
             .optimize = optimize,
         });
@@ -66,92 +106,103 @@ pub fn build(b: *std.Build) void {
     const run_bench_step = b.step("run-bench", "Run performance benchmarks");
     run_bench_step.dependOn(&run_bench.step);
 
-    // Example binaries
-    const examples = [_]struct {
-        name: []const u8,
-        description: []const u8,
-    }{
-        .{ .name = "session_client", .description = "PFCP session client example" },
-        .{ .name = "session_server", .description = "PFCP session server example" },
-        .{ .name = "message_builder", .description = "PFCP message builder example" },
-    };
-
-    // Production examples
-    const production_examples = [_]struct {
-        name: []const u8,
-        path: []const u8,
-        description: []const u8,
-    }{
-        .{ .name = "smf_simulator", .path = "examples/production/smf_simulator.zig", .description = "Production SMF simulator" },
-        .{ .name = "upf_simulator", .path = "examples/production/upf_simulator.zig", .description = "Production UPF simulator" },
-    };
-
-    inline for (examples) |example| {
-        const example_path = std.fmt.allocPrint(
-            b.allocator,
-            "examples/{s}.zig",
-            .{example.name},
-        ) catch unreachable;
-
+    // Example binaries - session_client
+    {
         const exe = b.addExecutable(.{
-            .name = example.name,
-            .root_source_file = b.path(example_path),
+            .name = "session_client",
+            .root_source_file = b.path("examples/session_client.zig"),
             .target = target,
             .optimize = optimize,
         });
         exe.root_module.addAnonymousImport("zig-pfcp", .{
             .root_source_file = b.path("src/lib.zig"),
         });
-
         const install_exe = b.addInstallArtifact(exe, .{});
-
-        const exe_step = b.step(
-            example.name,
-            example.description,
-        );
+        const exe_step = b.step("session_client", "PFCP session client example");
         exe_step.dependOn(&install_exe.step);
-
         const run_exe = b.addRunArtifact(exe);
-        if (b.args) |args| {
-            run_exe.addArgs(args);
-        }
-
-        const run_step = b.step(
-            b.fmt("run-{s}", .{example.name}),
-            b.fmt("Run {s}", .{example.description}),
-        );
+        if (b.args) |args| run_exe.addArgs(args);
+        const run_step = b.step("run-session_client", "Run PFCP session client example");
         run_step.dependOn(&run_exe.step);
     }
 
-    // Production examples
-    inline for (production_examples) |prod_example| {
+    // Example binaries - session_server
+    {
         const exe = b.addExecutable(.{
-            .name = prod_example.name,
-            .root_source_file = b.path(prod_example.path),
+            .name = "session_server",
+            .root_source_file = b.path("examples/session_server.zig"),
             .target = target,
             .optimize = optimize,
         });
         exe.root_module.addAnonymousImport("zig-pfcp", .{
             .root_source_file = b.path("src/lib.zig"),
         });
-
         const install_exe = b.addInstallArtifact(exe, .{});
-
-        const exe_step = b.step(
-            prod_example.name,
-            prod_example.description,
-        );
+        const exe_step = b.step("session_server", "PFCP session server example");
         exe_step.dependOn(&install_exe.step);
-
         const run_exe = b.addRunArtifact(exe);
-        if (b.args) |args| {
-            run_exe.addArgs(args);
-        }
+        if (b.args) |args| run_exe.addArgs(args);
+        const run_step = b.step("run-session_server", "Run PFCP session server example");
+        run_step.dependOn(&run_exe.step);
+    }
 
-        const run_step = b.step(
-            b.fmt("run-{s}", .{prod_example.name}),
-            b.fmt("Run {s}", .{prod_example.description}),
-        );
+    // Example binaries - message_builder
+    {
+        const exe = b.addExecutable(.{
+            .name = "message_builder",
+            .root_source_file = b.path("examples/message_builder.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        exe.root_module.addAnonymousImport("zig-pfcp", .{
+            .root_source_file = b.path("src/lib.zig"),
+        });
+        const install_exe = b.addInstallArtifact(exe, .{});
+        const exe_step = b.step("message_builder", "PFCP message builder example");
+        exe_step.dependOn(&install_exe.step);
+        const run_exe = b.addRunArtifact(exe);
+        if (b.args) |args| run_exe.addArgs(args);
+        const run_step = b.step("run-message_builder", "Run PFCP message builder example");
+        run_step.dependOn(&run_exe.step);
+    }
+
+    // Production examples - smf_simulator
+    {
+        const exe = b.addExecutable(.{
+            .name = "smf_simulator",
+            .root_source_file = b.path("examples/production/smf_simulator.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        exe.root_module.addAnonymousImport("zig-pfcp", .{
+            .root_source_file = b.path("src/lib.zig"),
+        });
+        const install_exe = b.addInstallArtifact(exe, .{});
+        const exe_step = b.step("smf_simulator", "Production SMF simulator");
+        exe_step.dependOn(&install_exe.step);
+        const run_exe = b.addRunArtifact(exe);
+        if (b.args) |args| run_exe.addArgs(args);
+        const run_step = b.step("run-smf_simulator", "Run Production SMF simulator");
+        run_step.dependOn(&run_exe.step);
+    }
+
+    // Production examples - upf_simulator
+    {
+        const exe = b.addExecutable(.{
+            .name = "upf_simulator",
+            .root_source_file = b.path("examples/production/upf_simulator.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        exe.root_module.addAnonymousImport("zig-pfcp", .{
+            .root_source_file = b.path("src/lib.zig"),
+        });
+        const install_exe = b.addInstallArtifact(exe, .{});
+        const exe_step = b.step("upf_simulator", "Production UPF simulator");
+        exe_step.dependOn(&install_exe.step);
+        const run_exe = b.addRunArtifact(exe);
+        if (b.args) |args| run_exe.addArgs(args);
+        const run_step = b.step("run-upf_simulator", "Run Production UPF simulator");
         run_step.dependOn(&run_exe.step);
     }
 

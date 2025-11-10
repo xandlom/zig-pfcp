@@ -1,7 +1,8 @@
 // Comprehensive tests for IE module
 const std = @import("std");
-const ie = @import("../src/ie.zig");
-const types = @import("../src/types.zig");
+const pfcp = @import("zig-pfcp");
+const ie = pfcp.ie;
+const types = pfcp.types;
 
 test "IEHeader - initialization" {
     const header = ie.IEHeader.init(.cause, 1);
