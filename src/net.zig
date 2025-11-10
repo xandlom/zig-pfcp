@@ -32,12 +32,12 @@ pub const MAX_RETRANSMISSIONS = 3;
 
 /// Sequence number manager
 pub const SequenceManager = struct {
-    current: u24,
+    value: u24,
     mutex: std.Thread.Mutex,
 
     pub fn init() SequenceManager {
         return .{
-            .current = 0,
+            .value = 0,
             .mutex = .{},
         };
     }
@@ -47,17 +47,17 @@ pub const SequenceManager = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
 
-        if (self.current == std.math.maxInt(u24)) {
-            self.current = 0;
+        if (self.value == std.math.maxInt(u24)) {
+            self.value = 0;
         } else {
-            self.current += 1;
+            self.value += 1;
         }
-        return self.current;
+        return self.value;
     }
 
     /// Get current sequence number without incrementing
     pub fn getCurrent(self: *const SequenceManager) u24 {
-        return self.current;
+        return self.value;
     }
 };
 
@@ -131,7 +131,10 @@ pub const PfcpSocket = struct {
             .local_address = bind_address,
             .allocator = allocator,
             .seq_manager = SequenceManager.init(),
-            .pending_requests = std.ArrayList(PendingRequest).init(allocator),
+            .pending_requests = .{
+                .items = &.{},
+                .capacity = 0,
+            },
         };
     }
 
@@ -139,7 +142,7 @@ pub const PfcpSocket = struct {
         for (self.pending_requests.items) |*req| {
             req.deinit();
         }
-        self.pending_requests.deinit();
+        self.pending_requests.deinit(self.allocator);
         std.posix.close(self.socket);
     }
 
@@ -450,7 +453,7 @@ test "SequenceManager basic operations" {
 
 test "SequenceManager wraparound" {
     var seq_mgr = SequenceManager.init();
-    seq_mgr.current = std.math.maxInt(u24) - 1;
+    seq_mgr.value = std.math.maxInt(u24) - 1;
 
     const seq1 = try seq_mgr.next();
     try std.testing.expectEqual(std.math.maxInt(u24), seq1);

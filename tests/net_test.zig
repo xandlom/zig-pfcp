@@ -26,7 +26,7 @@ test "Constants - MAX_RETRANSMISSIONS" {
 test "SequenceManager - initialization" {
     const seq_mgr = net_module.SequenceManager.init();
 
-    try std.testing.expectEqual(@as(u24, 0), seq_mgr.current);
+    try std.testing.expectEqual(@as(u24, 0), seq_mgr.value);
 }
 
 test "SequenceManager - next increments" {
@@ -43,7 +43,7 @@ test "SequenceManager - next increments" {
 
 test "SequenceManager - wraps at max value" {
     var seq_mgr = net_module.SequenceManager.init();
-    seq_mgr.current = std.math.maxInt(u24) - 1;
+    seq_mgr.value = std.math.maxInt(u24) - 1;
 
     const seq1 = try seq_mgr.next();
     const seq2 = try seq_mgr.next();

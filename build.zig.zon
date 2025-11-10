@@ -1,8 +1,8 @@
 .{
-    .name = .pfcp,
+    .name = .zig_pfcp,
     .version = "0.1.0",
-    .minimum_zig_version = "0.13.0",
-    .fingerprint = 0x18f4814a5cec8aba,
+    .fingerprint = 0xd09e62a957af2fa1,
+    .minimum_zig_version = "0.15.2",
 
     .dependencies = .{},
 
@@ -11,6 +11,7 @@
         "build.zig.zon",
         "src",
         "examples",
+        "benchmarks",
         "tests",
         "LICENSE",
         "README.md",
