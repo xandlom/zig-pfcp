@@ -169,7 +169,108 @@ zig build run-session_client
 
 # Build and run the session server example
 zig build run-session_server
+
+# Build and run production examples
+zig build run-smf_simulator
+zig build run-upf_simulator
 ```
+
+## Production Features
+
+### Comprehensive Testing
+
+The library includes extensive test coverage across all modules:
+
+```bash
+# Run all tests (includes unit tests for all modules)
+zig build test
+```
+
+Test files:
+- `tests/types_test.zig` - Core types and enums
+- `tests/ie_test.zig` - Information Elements
+- `tests/message_test.zig` - PFCP messages
+- `tests/marshal_test.zig` - Binary encoding/decoding
+- `tests/net_test.zig` - Network layer
+
+### Performance Benchmarks
+
+Measure the performance of critical operations:
+
+```bash
+# Build and run benchmarks
+zig build run-bench
+```
+
+Benchmarks include:
+- Marshal/unmarshal operations (Writer/Reader)
+- Message encoding/decoding
+- Round-trip performance
+
+### Message Comparison Framework
+
+Utility functions for comparing PFCP messages and IEs:
+
+```zig
+const pfcp = @import("zig-pfcp");
+
+// Compare Node IDs
+const node1 = pfcp.ie.NodeId.initIpv4([_]u8{ 192, 168, 1, 1 });
+const node2 = pfcp.ie.NodeId.initIpv4([_]u8{ 192, 168, 1, 1 });
+const result = pfcp.compare.compareNodeId(node1, node2);
+// result == .equal
+
+// Compare F-SEIDs
+const fseid1 = pfcp.ie.FSEID.initV4(0x1234, [_]u8{ 10, 0, 0, 1 });
+const fseid2 = pfcp.ie.FSEID.initV4(0x1234, [_]u8{ 10, 0, 0, 1 });
+const equal = pfcp.compare.compareFSEID(fseid1, fseid2);
+```
+
+### PCAP Support
+
+Read and write PFCP traffic in PCAP format for analysis:
+
+```zig
+const pfcp = @import("zig-pfcp");
+
+// Write PFCP traffic to PCAP file
+var writer = try pfcp.pcap.PcapWriter.init(allocator, "capture.pcap");
+defer writer.deinit();
+
+try writer.writePacket(
+    [_]u8{ 192, 168, 1, 1 },  // src IP
+    [_]u8{ 192, 168, 1, 2 },  // dst IP
+    8805,                      // src port
+    8805,                      // dst port
+    payload,                   // PFCP message data
+    std.time.microTimestamp(),
+);
+
+// Read PFCP traffic from PCAP file
+var reader = try pfcp.pcap.PcapReader.init(allocator, "capture.pcap");
+defer reader.deinit();
+
+while (try reader.readPacket()) |packet| {
+    defer packet.deinit();
+    // Process packet.payload
+}
+```
+
+### Production Simulators
+
+Two production-ready examples demonstrate complete SMF and UPF implementations:
+
+- **SMF Simulator** (`examples/production/smf_simulator.zig`)
+  - Association management
+  - Session lifecycle (create, modify, delete)
+  - Heartbeat mechanism
+  - Demonstrates Control Plane operations
+
+- **UPF Simulator** (`examples/production/upf_simulator.zig`)
+  - Association handling
+  - Session state management
+  - Response generation
+  - Demonstrates User Plane operations
 
 ## Development Roadmap
 
@@ -210,11 +311,11 @@ zig build run-session_server
 - [x] Ethernet PDU session support
 
 ### Phase 6: Production Readiness
-- [ ] Comprehensive test coverage
-- [ ] Performance benchmarks
-- [ ] Message comparison framework
-- [ ] PCAP reader/writer
-- [ ] Production examples (SMF/UPF simulators)
+- [x] Comprehensive test coverage
+- [x] Performance benchmarks
+- [x] Message comparison framework
+- [x] PCAP reader/writer
+- [x] Production examples (SMF/UPF simulators)
 
 ## Testing
 
@@ -275,4 +376,4 @@ For questions, issues, or contributions, please open an issue on GitHub.
 
 ---
 
-**Status**: 🚧 Early Development - Core protocol types and structures implemented. Binary serialization and network layer coming soon!
+**Status**: ✅ Production Ready - All phases complete! Comprehensive PFCP implementation with full test coverage, performance benchmarks, PCAP support, and production examples.
