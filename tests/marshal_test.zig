@@ -1,6 +1,7 @@
 // Comprehensive tests for marshal module
 const std = @import("std");
-const marshal = @import("../src/marshal.zig");
+const pfcp = @import("zig-pfcp");
+const marshal = pfcp.marshal;
 
 test "Writer - initialization" {
     var buffer: [1024]u8 = undefined;
@@ -223,14 +224,14 @@ test "Reader - sequential reads" {
     var reader = marshal.Reader.init(&buffer);
 
     const b = try reader.readByte();
-    const u16 = try reader.readU16();
-    const u32 = try reader.readU32();
-    const u64 = try reader.readU64();
+    const val_u16 = try reader.readU16();
+    const val_u32 = try reader.readU32();
+    const val_u64 = try reader.readU64();
 
     try std.testing.expectEqual(@as(u8, 0x01), b);
-    try std.testing.expectEqual(@as(u16, 0x0203), u16);
-    try std.testing.expectEqual(@as(u32, 0x04050607), u32);
-    try std.testing.expectEqual(@as(u64, 0x08090A0B0C0D0E0F), u64);
+    try std.testing.expectEqual(@as(u16, 0x0203), val_u16);
+    try std.testing.expectEqual(@as(u32, 0x04050607), val_u32);
+    try std.testing.expectEqual(@as(u64, 0x08090A0B0C0D0E0F), val_u64);
 }
 
 test "Writer and Reader - round trip" {
@@ -248,14 +249,14 @@ test "Writer and Reader - round trip" {
     var reader = marshal.Reader.init(written);
 
     const b = try reader.readByte();
-    const u16 = try reader.readU16();
-    const u32 = try reader.readU32();
-    const u64 = try reader.readU64();
+    const val_u16 = try reader.readU16();
+    const val_u32 = try reader.readU32();
+    const val_u64 = try reader.readU64();
 
     try std.testing.expectEqual(@as(u8, 0x42), b);
-    try std.testing.expectEqual(@as(u16, 0x1234), u16);
-    try std.testing.expectEqual(@as(u32, 0x56789ABC), u32);
-    try std.testing.expectEqual(@as(u64, 0xDEADBEEFCAFEBABE), u64);
+    try std.testing.expectEqual(@as(u16, 0x1234), val_u16);
+    try std.testing.expectEqual(@as(u32, 0x56789ABC), val_u32);
+    try std.testing.expectEqual(@as(u64, 0xDEADBEEFCAFEBABE), val_u64);
 }
 
 test "MarshalError - all error types defined" {

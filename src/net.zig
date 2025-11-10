@@ -56,7 +56,7 @@ pub const SequenceManager = struct {
     }
 
     /// Get current sequence number without incrementing
-    pub fn current(self: *const SequenceManager) u24 {
+    pub fn getCurrent(self: *const SequenceManager) u24 {
         return self.current;
     }
 };

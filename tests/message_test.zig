@@ -1,8 +1,9 @@
 // Comprehensive tests for message module
 const std = @import("std");
-const message = @import("../src/message.zig");
-const ie = @import("../src/ie.zig");
-const types = @import("../src/types.zig");
+const pfcp = @import("zig-pfcp");
+const message = pfcp.message;
+const ie = pfcp.ie;
+const types = pfcp.types;
 
 test "HeartbeatRequest - initialization" {
     const recovery = ie.RecoveryTimeStamp.init(12345);

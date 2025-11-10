@@ -49,7 +49,7 @@ pub const PcapPacketHeader = packed struct {
 };
 
 /// Ethernet Header (14 bytes)
-pub const EthernetHeader = packed struct {
+pub const EthernetHeader = extern struct {
     dst_mac: [6]u8, // destination MAC address
     src_mac: [6]u8, // source MAC address
     ethertype: u16, // 0x0800 for IPv4
@@ -64,7 +64,7 @@ pub const EthernetHeader = packed struct {
 };
 
 /// IPv4 Header (20 bytes, simplified without options)
-pub const Ipv4Header = packed struct {
+pub const Ipv4Header = extern struct {
     version_ihl: u8, // version (4 bits) + IHL (4 bits)
     dscp_ecn: u8, // DSCP (6 bits) + ECN (2 bits)
     total_length: u16,
@@ -305,8 +305,8 @@ test "PcapPacketHeader - initialization" {
     const timestamp: i64 = 1234567890123456;
     const header = PcapPacketHeader.init(timestamp, 100);
 
-    try std.testing.expectEqual(@as(u32, 1234567), header.ts_sec);
-    try std.testing.expectEqual(@as(u32, 890123456), header.ts_usec);
+    try std.testing.expectEqual(@as(u32, 1234567890), header.ts_sec);
+    try std.testing.expectEqual(@as(u32, 123456), header.ts_usec);
     try std.testing.expectEqual(@as(u32, 100), header.incl_len);
 }
 
