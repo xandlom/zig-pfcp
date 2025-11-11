@@ -131,10 +131,7 @@ pub const PfcpSocket = struct {
             .local_address = bind_address,
             .allocator = allocator,
             .seq_manager = SequenceManager.init(),
-            .pending_requests = .{
-                .items = &.{},
-                .capacity = 0,
-            },
+            .pending_requests = std.ArrayList(PendingRequest).init(allocator),
         };
     }
 
@@ -142,7 +139,7 @@ pub const PfcpSocket = struct {
         for (self.pending_requests.items) |*req| {
             req.deinit();
         }
-        self.pending_requests.deinit(self.allocator);
+        self.pending_requests.deinit();
         std.posix.close(self.socket);
     }
 
@@ -193,7 +190,8 @@ pub const PfcpSocket = struct {
 
         // Write PFCP header
         // Byte 0: Version (4 bits) + spare + MP + S
-        const version_byte: u8 = (types.PFCP_VERSION << 4) | (if (has_seid) 0x01 else 0x00);
+        const seid_flag: u8 = if (has_seid) 0x01 else 0x00;
+        const version_byte: u8 = (types.PFCP_VERSION << 4) | seid_flag;
         try writer.writeByte(version_byte);
 
         // Byte 1: Message type
@@ -344,8 +342,8 @@ pub const PfcpSocket = struct {
             // Set socket timeout for receive
             const remaining_ms = timeout_ms - elapsed;
             const tv = std.posix.timeval{
-                .tv_sec = @intCast(@divFloor(remaining_ms, 1000)),
-                .tv_usec = @intCast(@mod(remaining_ms, 1000) * 1000),
+                .sec = @intCast(@divFloor(remaining_ms, 1000)),
+                .usec = @intCast(@mod(remaining_ms, 1000) * 1000),
             };
             try std.posix.setsockopt(
                 self.socket,
@@ -362,7 +360,13 @@ pub const PfcpSocket = struct {
             };
 
             if (msg.sequence_number == seq_num) {
-                return msg;
+                return .{
+                    .message_type = msg.message_type,
+                    .seid = msg.seid,
+                    .sequence_number = msg.sequence_number,
+                    .payload = msg.payload,
+                    .source = msg.source,
+                };
             }
             // Otherwise, discard and continue waiting
         }
