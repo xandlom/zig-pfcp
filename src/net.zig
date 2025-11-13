@@ -131,10 +131,7 @@ pub const PfcpSocket = struct {
             .local_address = bind_address,
             .allocator = allocator,
             .seq_manager = SequenceManager.init(),
-            .pending_requests = .{
-                .items = &.{},
-                .capacity = 0,
-            },
+            .pending_requests = std.ArrayList(PendingRequest).init(allocator),
         };
     }
 
@@ -142,7 +139,7 @@ pub const PfcpSocket = struct {
         for (self.pending_requests.items) |*req| {
             req.deinit();
         }
-        self.pending_requests.deinit(self.allocator);
+        self.pending_requests.deinit();
         std.posix.close(self.socket);
     }
 

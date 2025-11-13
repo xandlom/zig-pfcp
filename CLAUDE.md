@@ -35,7 +35,7 @@ zig build run-session_server
 zig build docs
 ```
 
-**Zig Version**: Requires 0.15.2
+**Zig Version**: Requires 0.14.1
 
 ## Architecture
 
