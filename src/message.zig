@@ -69,10 +69,10 @@ pub const AssociationSetupResponse = struct {
 pub const SessionEstablishmentRequest = struct {
     node_id: ie.NodeId,
     f_seid: ie.FSEID,
-    create_pdr: ?[]const u8 = null,
-    create_far: ?[]const u8 = null,
-    create_urr: ?[]const u8 = null,
-    create_qer: ?[]const u8 = null,
+    create_pdr: ?[]const ie.CreatePDR = null,
+    create_far: ?[]const ie.CreateFAR = null,
+    create_urr: ?[]const ie.CreateURR = null,
+    create_qer: ?[]const ie.CreateQER = null,
     pdn_type: ?u8 = null,
 
     pub fn init(node_id: ie.NodeId, f_seid: ie.FSEID) SessionEstablishmentRequest {
@@ -81,6 +81,54 @@ pub const SessionEstablishmentRequest = struct {
             .f_seid = f_seid,
         };
     }
+
+    pub fn withCreatePDR(self: SessionEstablishmentRequest, pdrs: []const ie.CreatePDR) SessionEstablishmentRequest {
+        var result = self;
+        result.create_pdr = pdrs;
+        return result;
+    }
+
+    pub fn withCreateFAR(self: SessionEstablishmentRequest, fars: []const ie.CreateFAR) SessionEstablishmentRequest {
+        var result = self;
+        result.create_far = fars;
+        return result;
+    }
+
+    pub fn withCreateURR(self: SessionEstablishmentRequest, urrs: []const ie.CreateURR) SessionEstablishmentRequest {
+        var result = self;
+        result.create_urr = urrs;
+        return result;
+    }
+
+    pub fn withCreateQER(self: SessionEstablishmentRequest, qers: []const ie.CreateQER) SessionEstablishmentRequest {
+        var result = self;
+        result.create_qer = qers;
+        return result;
+    }
+};
+
+/// Created PDR IE (3GPP TS 29.244 Section 7.5.2.2)
+/// Contains the PDR ID and optionally allocated F-TEID
+pub const CreatedPDR = struct {
+    pdr_id: ie.PDRID,
+    f_teid: ?ie.FTEID = null,
+    ue_ip_address: ?ie.UEIPAddress = null,
+
+    pub fn init(pdr_id: ie.PDRID) CreatedPDR {
+        return .{ .pdr_id = pdr_id };
+    }
+
+    pub fn withFTeid(self: CreatedPDR, f_teid: ie.FTEID) CreatedPDR {
+        var result = self;
+        result.f_teid = f_teid;
+        return result;
+    }
+
+    pub fn withUeIp(self: CreatedPDR, ue_ip: ie.UEIPAddress) CreatedPDR {
+        var result = self;
+        result.ue_ip_address = ue_ip;
+        return result;
+    }
 };
 
 /// Session Establishment Response (3GPP TS 29.244 Section 7.5.2.2)
@@ -88,7 +136,7 @@ pub const SessionEstablishmentResponse = struct {
     node_id: ie.NodeId,
     cause: ie.Cause,
     f_seid: ?ie.FSEID = null,
-    created_pdr: ?[]const u8 = null,
+    created_pdr: ?[]const CreatedPDR = null,
     load_control_information: ?[]const u8 = null,
     overload_control_information: ?[]const u8 = null,
 
@@ -106,19 +154,28 @@ pub const SessionEstablishmentResponse = struct {
             .f_seid = f_seid,
         };
     }
+
+    pub fn withCreatedPDR(self: SessionEstablishmentResponse, pdrs: []const CreatedPDR) SessionEstablishmentResponse {
+        var result = self;
+        result.created_pdr = pdrs;
+        return result;
+    }
 };
 
 /// Session Modification Request (3GPP TS 29.244 Section 7.5.4.1)
 pub const SessionModificationRequest = struct {
     f_seid: ?ie.FSEID = null,
-    remove_pdr: ?[]const u8 = null,
-    remove_far: ?[]const u8 = null,
-    remove_urr: ?[]const u8 = null,
-    remove_qer: ?[]const u8 = null,
-    create_pdr: ?[]const u8 = null,
-    create_far: ?[]const u8 = null,
-    create_urr: ?[]const u8 = null,
-    create_qer: ?[]const u8 = null,
+    // Remove operations (will be implemented in Issue #4)
+    remove_pdr: ?[]const ie.PDRID = null,
+    remove_far: ?[]const ie.FARID = null,
+    remove_urr: ?[]const ie.URRID = null,
+    remove_qer: ?[]const ie.QERID = null,
+    // Create operations
+    create_pdr: ?[]const ie.CreatePDR = null,
+    create_far: ?[]const ie.CreateFAR = null,
+    create_urr: ?[]const ie.CreateURR = null,
+    create_qer: ?[]const ie.CreateQER = null,
+    // Update operations (will be implemented in Issue #4)
     update_pdr: ?[]const u8 = null,
     update_far: ?[]const u8 = null,
     update_urr: ?[]const u8 = null,
@@ -127,15 +184,57 @@ pub const SessionModificationRequest = struct {
     pub fn init() SessionModificationRequest {
         return .{};
     }
+
+    pub fn withFSEID(self: SessionModificationRequest, f_seid: ie.FSEID) SessionModificationRequest {
+        var result = self;
+        result.f_seid = f_seid;
+        return result;
+    }
+
+    pub fn withCreatePDR(self: SessionModificationRequest, pdrs: []const ie.CreatePDR) SessionModificationRequest {
+        var result = self;
+        result.create_pdr = pdrs;
+        return result;
+    }
+
+    pub fn withCreateFAR(self: SessionModificationRequest, fars: []const ie.CreateFAR) SessionModificationRequest {
+        var result = self;
+        result.create_far = fars;
+        return result;
+    }
+
+    pub fn withCreateURR(self: SessionModificationRequest, urrs: []const ie.CreateURR) SessionModificationRequest {
+        var result = self;
+        result.create_urr = urrs;
+        return result;
+    }
+
+    pub fn withCreateQER(self: SessionModificationRequest, qers: []const ie.CreateQER) SessionModificationRequest {
+        var result = self;
+        result.create_qer = qers;
+        return result;
+    }
+
+    pub fn withRemovePDR(self: SessionModificationRequest, pdr_ids: []const ie.PDRID) SessionModificationRequest {
+        var result = self;
+        result.remove_pdr = pdr_ids;
+        return result;
+    }
+
+    pub fn withRemoveFAR(self: SessionModificationRequest, far_ids: []const ie.FARID) SessionModificationRequest {
+        var result = self;
+        result.remove_far = far_ids;
+        return result;
+    }
 };
 
 /// Session Modification Response (3GPP TS 29.244 Section 7.5.4.2)
 pub const SessionModificationResponse = struct {
     cause: ie.Cause,
-    created_pdr: ?[]const u8 = null,
+    created_pdr: ?[]const CreatedPDR = null,
     load_control_information: ?[]const u8 = null,
     overload_control_information: ?[]const u8 = null,
-    usage_report: ?[]const u8 = null,
+    usage_report: ?[]const u8 = null, // Will be typed in Issue #3
 
     pub fn init(cause: ie.Cause) SessionModificationResponse {
         return .{ .cause = cause };
@@ -143,6 +242,12 @@ pub const SessionModificationResponse = struct {
 
     pub fn accepted() SessionModificationResponse {
         return .{ .cause = ie.Cause.accepted() };
+    }
+
+    pub fn withCreatedPDR(self: SessionModificationResponse, pdrs: []const CreatedPDR) SessionModificationResponse {
+        var result = self;
+        result.created_pdr = pdrs;
+        return result;
     }
 };
 
@@ -193,4 +298,112 @@ test "Session establishment response helper" {
     const response = SessionEstablishmentResponse.accepted(node_id, fseid);
     try std.testing.expect(response.cause.cause.isAccepted());
     try std.testing.expect(response.f_seid != null);
+}
+
+test "Session establishment request with PDRs and FARs" {
+    const node_id = ie.NodeId.initIpv4([_]u8{ 192, 168, 1, 1 });
+    const fseid = ie.FSEID.initV4(12345, [_]u8{ 10, 0, 0, 1 });
+
+    // Create PDRs
+    const pdr1 = ie.CreatePDR.init(
+        ie.PDRID.init(1),
+        ie.Precedence.init(100),
+        ie.PDI.init(ie.SourceInterface.init(.access)),
+    ).withFarId(ie.FARID.init(1));
+
+    const pdr2 = ie.CreatePDR.init(
+        ie.PDRID.init(2),
+        ie.Precedence.init(200),
+        ie.PDI.init(ie.SourceInterface.init(.core)),
+    ).withFarId(ie.FARID.init(2));
+
+    const pdrs = [_]ie.CreatePDR{ pdr1, pdr2 };
+
+    // Create FARs
+    const far1 = ie.CreateFAR.forward(ie.FARID.init(1), ie.DestinationInterface.init(.core));
+    const far2 = ie.CreateFAR.drop(ie.FARID.init(2));
+
+    const fars = [_]ie.CreateFAR{ far1, far2 };
+
+    const request = SessionEstablishmentRequest.init(node_id, fseid)
+        .withCreatePDR(&pdrs)
+        .withCreateFAR(&fars);
+
+    try std.testing.expect(request.create_pdr != null);
+    try std.testing.expectEqual(@as(usize, 2), request.create_pdr.?.len);
+    try std.testing.expectEqual(@as(u16, 1), request.create_pdr.?[0].pdr_id.rule_id);
+    try std.testing.expectEqual(@as(u16, 2), request.create_pdr.?[1].pdr_id.rule_id);
+
+    try std.testing.expect(request.create_far != null);
+    try std.testing.expectEqual(@as(usize, 2), request.create_far.?.len);
+    try std.testing.expect(request.create_far.?[0].apply_action.actions.forw);
+    try std.testing.expect(request.create_far.?[1].apply_action.actions.drop);
+}
+
+test "Session establishment request with QERs and URRs" {
+    const node_id = ie.NodeId.initIpv4([_]u8{ 192, 168, 1, 1 });
+    const fseid = ie.FSEID.initV4(12345, [_]u8{ 10, 0, 0, 1 });
+
+    // Create QERs with rate limits
+    const qer = ie.CreateQER.withRates(
+        ie.QERID.init(1),
+        100_000_000,
+        200_000_000,
+        50_000_000,
+        100_000_000,
+    );
+
+    const qers = [_]ie.CreateQER{qer};
+
+    // Create URR for volume measurement
+    const urr = ie.CreateURR.init(
+        ie.URRID.init(1),
+        ie.MeasurementMethod.volume(),
+    ).withVolumeThreshold(ie.VolumeThreshold.initTotal(1_000_000_000));
+
+    const urrs = [_]ie.CreateURR{urr};
+
+    const request = SessionEstablishmentRequest.init(node_id, fseid)
+        .withCreateQER(&qers)
+        .withCreateURR(&urrs);
+
+    try std.testing.expect(request.create_qer != null);
+    try std.testing.expectEqual(@as(usize, 1), request.create_qer.?.len);
+    try std.testing.expect(request.create_qer.?[0].gate_status != null);
+
+    try std.testing.expect(request.create_urr != null);
+    try std.testing.expectEqual(@as(usize, 1), request.create_urr.?.len);
+    try std.testing.expect(request.create_urr.?[0].measurement_method.flags.volum);
+}
+
+test "Created PDR with F-TEID" {
+    const pdr_id = ie.PDRID.init(1);
+    const f_teid = ie.FTEID.initV4(0x12345678, [_]u8{ 10, 0, 0, 1 });
+
+    const created_pdr = CreatedPDR.init(pdr_id).withFTeid(f_teid);
+
+    try std.testing.expectEqual(@as(u16, 1), created_pdr.pdr_id.rule_id);
+    try std.testing.expect(created_pdr.f_teid != null);
+    try std.testing.expectEqual(@as(u32, 0x12345678), created_pdr.f_teid.?.teid);
+}
+
+test "Session modification request" {
+    const pdr = ie.CreatePDR.init(
+        ie.PDRID.init(3),
+        ie.Precedence.init(300),
+        ie.PDI.init(ie.SourceInterface.init(.access)),
+    );
+
+    const pdrs = [_]ie.CreatePDR{pdr};
+    const remove_pdrs = [_]ie.PDRID{ie.PDRID.init(1)};
+
+    const request = SessionModificationRequest.init()
+        .withCreatePDR(&pdrs)
+        .withRemovePDR(&remove_pdrs);
+
+    try std.testing.expect(request.create_pdr != null);
+    try std.testing.expectEqual(@as(usize, 1), request.create_pdr.?.len);
+    try std.testing.expect(request.remove_pdr != null);
+    try std.testing.expectEqual(@as(usize, 1), request.remove_pdr.?.len);
+    try std.testing.expectEqual(@as(u16, 1), request.remove_pdr.?[0].rule_id);
 }
