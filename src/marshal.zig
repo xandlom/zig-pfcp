@@ -951,7 +951,7 @@ pub fn decodeApplyAction(reader: *Reader, length: u16) MarshalError!ie.ApplyActi
     };
 }
 
-/// Encode Outer Header Creation IE
+/// Encode Outer Header Creation IE (3GPP TS 29.244 Section 8.2.56)
 pub fn encodeOuterHeaderCreation(writer: *Writer, ohc: ie.OuterHeaderCreation) MarshalError!void {
     const start_pos = writer.pos;
     try writer.skip(4); // Reserve space for header
@@ -968,24 +968,44 @@ pub fn encodeOuterHeaderCreation(writer: *Writer, ohc: ie.OuterHeaderCreation) M
     if (ohc.flags.stag) flags |= 0x0080;
     try writer.writeU16(flags);
 
-    // TEID if GTP-U
+    // TEID if GTP-U flag is set
     if (ohc.flags.gtpu_udp_ipv4 or ohc.flags.gtpu_udp_ipv6) {
         try writer.writeU32(ohc.teid orelse 0);
     }
 
-    // IPv4 address
-    if (ohc.ipv4) |addr| {
-        try writer.writeBytes(&addr);
+    // IPv4 address - only write if an IPv4-related flag is set
+    if (ohc.flags.gtpu_udp_ipv4 or ohc.flags.udp_ipv4 or ohc.flags.ipv4) {
+        if (ohc.ipv4) |addr| {
+            try writer.writeBytes(&addr);
+        }
     }
 
-    // IPv6 address
-    if (ohc.ipv6) |addr| {
-        try writer.writeBytes(&addr);
+    // IPv6 address - only write if an IPv6-related flag is set
+    if (ohc.flags.gtpu_udp_ipv6 or ohc.flags.udp_ipv6 or ohc.flags.ipv6) {
+        if (ohc.ipv6) |addr| {
+            try writer.writeBytes(&addr);
+        }
     }
 
-    // Port number
-    if (ohc.port) |port| {
-        try writer.writeU16(port);
+    // Port number - only write if a UDP-related flag is set
+    if (ohc.flags.udp_ipv4 or ohc.flags.udp_ipv6) {
+        if (ohc.port) |port| {
+            try writer.writeU16(port);
+        }
+    }
+
+    // C-TAG - only write if ctag flag is set
+    if (ohc.flags.ctag) {
+        if (ohc.ctag) |ctag| {
+            try writer.writeU16(ctag);
+        }
+    }
+
+    // S-TAG - only write if stag flag is set
+    if (ohc.flags.stag) {
+        if (ohc.stag) |stag| {
+            try writer.writeU16(stag);
+        }
     }
 
     // Calculate and write header
@@ -996,7 +1016,7 @@ pub fn encodeOuterHeaderCreation(writer: *Writer, ohc: ie.OuterHeaderCreation) M
     writer.pos = saved_pos;
 }
 
-/// Decode Outer Header Creation IE
+/// Decode Outer Header Creation IE (3GPP TS 29.244 Section 8.2.56)
 pub fn decodeOuterHeaderCreation(reader: *Reader, length: u16) MarshalError!ie.OuterHeaderCreation {
     if (length < 2) return MarshalError.InvalidLength;
 
@@ -1012,12 +1032,14 @@ pub fn decodeOuterHeaderCreation(reader: *Reader, length: u16) MarshalError!ie.O
     const ctag_flag = (flags & 0x0040) != 0;
     const stag_flag = (flags & 0x0080) != 0;
 
+    // TEID - present if GTP-U flag is set
     var teid: ?u32 = null;
     if (gtpu_udp_ipv4 or gtpu_udp_ipv6) {
         teid = try reader.readU32();
         bytes_read += 4;
     }
 
+    // IPv4 address - present if any IPv4-related flag is set
     var ipv4: ?[4]u8 = null;
     if (gtpu_udp_ipv4 or udp_ipv4 or ipv4_flag) {
         const addr_bytes = try reader.readBytes(4);
@@ -1027,6 +1049,7 @@ pub fn decodeOuterHeaderCreation(reader: *Reader, length: u16) MarshalError!ie.O
         bytes_read += 4;
     }
 
+    // IPv6 address - present if any IPv6-related flag is set
     var ipv6: ?[16]u8 = null;
     if (gtpu_udp_ipv6 or udp_ipv6 or ipv6_flag) {
         const addr_bytes = try reader.readBytes(16);
@@ -1036,7 +1059,34 @@ pub fn decodeOuterHeaderCreation(reader: *Reader, length: u16) MarshalError!ie.O
         bytes_read += 16;
     }
 
-    // Skip remaining bytes (port, ctag, stag)
+    // Port number - present if UDP flag is set
+    var port: ?u16 = null;
+    if (udp_ipv4 or udp_ipv6) {
+        if (bytes_read + 2 <= length) {
+            port = try reader.readU16();
+            bytes_read += 2;
+        }
+    }
+
+    // C-TAG - present if ctag flag is set
+    var ctag: ?u16 = null;
+    if (ctag_flag) {
+        if (bytes_read + 2 <= length) {
+            ctag = try reader.readU16();
+            bytes_read += 2;
+        }
+    }
+
+    // S-TAG - present if stag flag is set
+    var stag: ?u16 = null;
+    if (stag_flag) {
+        if (bytes_read + 2 <= length) {
+            stag = try reader.readU16();
+            bytes_read += 2;
+        }
+    }
+
+    // Skip any remaining bytes (for forward compatibility)
     if (bytes_read < length) {
         try reader.skip(length - bytes_read);
     }
@@ -1055,6 +1105,9 @@ pub fn decodeOuterHeaderCreation(reader: *Reader, length: u16) MarshalError!ie.O
         .teid = teid,
         .ipv4 = ipv4,
         .ipv6 = ipv6,
+        .port = port,
+        .ctag = ctag,
+        .stag = stag,
     };
 }
 
@@ -1191,13 +1244,9 @@ pub fn decodePDRID(reader: *Reader, length: u16) MarshalError!ie.PDRID {
     return ie.PDRID{ .rule_id = rule_id };
 }
 
-/// Encode FAR ID IE (note: FAR ID is IE Type 88 according to spec, but we use far_id field)
+/// Encode FAR ID IE (3GPP TS 29.244 Section 8.2.74)
 pub fn encodeFARID(writer: *Writer, far_id: ie.FARID) MarshalError!void {
-    // FAR ID is referenced in PDR but doesn't have its own IE type in the enum
-    // It's typically encoded as part of the Create PDR or Update PDR
-    // Using a custom approach: 4 bytes for the FAR ID value
-    try writer.writeU16(108); // FAR ID IE type per 3GPP
-    try writer.writeU16(4);
+    try encodeIEHeader(writer, .far_id, 4);
     try writer.writeU32(far_id.far_id);
 }
 
@@ -1223,11 +1272,9 @@ pub fn decodeURRID(reader: *Reader, length: u16) MarshalError!ie.URRID {
     return ie.URRID{ .urr_id = urr_id };
 }
 
-/// Encode QER ID IE
+/// Encode QER ID IE (3GPP TS 29.244 Section 8.2.75)
 pub fn encodeQERID(writer: *Writer, qer_id: ie.QERID) MarshalError!void {
-    // QER ID is 4 bytes per 3GPP TS 29.244
-    try writer.writeU16(109); // QER ID IE type
-    try writer.writeU16(4);
+    try encodeIEHeader(writer, .qer_id, 4);
     try writer.writeU32(qer_id.qer_id);
 }
 
@@ -1708,7 +1755,7 @@ pub fn decodeCreatePDR(reader: *Reader, length: u16, allocator: std.mem.Allocato
         const ie_header = try decodeIEHeader(reader);
         if (ie_header.ie_type == @intFromEnum(types.IEType.urr_id)) {
             urr_count += 1;
-        } else if (ie_header.ie_type == 109) { // QER ID
+        } else if (ie_header.ie_type == @intFromEnum(types.IEType.qer_id)) {
             qer_count += 1;
         }
         try reader.skip(ie_header.length);
@@ -1739,26 +1786,21 @@ pub fn decodeCreatePDR(reader: *Reader, length: u16, allocator: std.mem.Allocato
             .pdr_id => pdr_id = try decodePDRID(reader, ie_header.length),
             .precedence => precedence = try decodePrecedence(reader, ie_header.length),
             .pdi => pdi = try decodePDI(reader, ie_header.length, allocator),
+            .far_id => far_id = try decodeFARID(reader, ie_header.length),
             .urr_id => {
                 if (urr_ids) |ids| {
                     ids[urr_idx] = try decodeURRID(reader, ie_header.length);
                     urr_idx += 1;
                 }
             },
-            .outer_header_removal => outer_header_removal = try decodeOuterHeaderRemoval(reader, ie_header.length),
-            else => {
-                // Handle FAR ID (type 108) and QER ID (type 109)
-                if (ie_header.ie_type == 108) {
-                    far_id = try decodeFARID(reader, ie_header.length);
-                } else if (ie_header.ie_type == 109) {
-                    if (qer_ids) |ids| {
-                        ids[qer_idx] = try decodeQERID(reader, ie_header.length);
-                        qer_idx += 1;
-                    }
-                } else {
-                    try reader.skip(ie_header.length);
+            .qer_id => {
+                if (qer_ids) |ids| {
+                    ids[qer_idx] = try decodeQERID(reader, ie_header.length);
+                    qer_idx += 1;
                 }
             },
+            .outer_header_removal => outer_header_removal = try decodeOuterHeaderRemoval(reader, ie_header.length),
+            else => try reader.skip(ie_header.length),
         }
     }
 
@@ -1813,16 +1855,10 @@ pub fn decodeCreateFAR(reader: *Reader, length: u16, allocator: std.mem.Allocato
         const ie_type: types.IEType = @enumFromInt(ie_header.ie_type);
 
         switch (ie_type) {
+            .far_id => far_id = try decodeFARID(reader, ie_header.length),
             .apply_action => apply_action = try decodeApplyAction(reader, ie_header.length),
             .forwarding_parameters => forwarding_parameters = try decodeForwardingParameters(reader, ie_header.length, allocator),
-            else => {
-                // FAR ID is type 108
-                if (ie_header.ie_type == 108) {
-                    far_id = try decodeFARID(reader, ie_header.length);
-                } else {
-                    try reader.skip(ie_header.length);
-                }
-            },
+            else => try reader.skip(ie_header.length),
         }
     }
 
@@ -1888,18 +1924,12 @@ pub fn decodeCreateQER(reader: *Reader, length: u16, allocator: std.mem.Allocato
         const ie_type: types.IEType = @enumFromInt(ie_header.ie_type);
 
         switch (ie_type) {
+            .qer_id => qer_id = try decodeQERID(reader, ie_header.length),
             .gate_status => gate_status = try decodeGateStatus(reader, ie_header.length),
             .mbr => mbr = try decodeMBR(reader, ie_header.length),
             .gbr => gbr = try decodeGBR(reader, ie_header.length),
             .qer_correlation_id => qer_correlation_id = try decodeQERCorrelationID(reader, ie_header.length),
-            else => {
-                // QER ID is type 109
-                if (ie_header.ie_type == 109) {
-                    qer_id = try decodeQERID(reader, ie_header.length);
-                } else {
-                    try reader.skip(ie_header.length);
-                }
-            },
+            else => try reader.skip(ie_header.length),
         }
     }
 
