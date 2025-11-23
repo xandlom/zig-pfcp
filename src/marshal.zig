@@ -373,12 +373,13 @@ pub fn encodeFTEID(writer: *Writer, fteid: ie.FTEID) MarshalError!void {
     const start_pos = writer.pos;
     try writer.skip(4); // Reserve space for header
 
-    // Encode flags
+    // Encode flags (3GPP TS 29.244 Section 8.2.3)
+    // Bit 0: V4, Bit 1: V6, Bit 2: CH, Bit 3: CHID (bits 4-7 spare)
     var flags: u8 = 0;
-    if (fteid.flags.v4) flags |= 0x08;
-    if (fteid.flags.v6) flags |= 0x04;
-    if (fteid.flags.ch) flags |= 0x02;
-    if (fteid.flags.chid) flags |= 0x01;
+    if (fteid.flags.v4) flags |= 0x01; // V4 at bit 0
+    if (fteid.flags.v6) flags |= 0x02; // V6 at bit 1
+    if (fteid.flags.ch) flags |= 0x04; // CH at bit 2
+    if (fteid.flags.chid) flags |= 0x08; // CHID at bit 3
     try writer.writeByte(flags);
 
     // Encode TEID
@@ -409,11 +410,13 @@ pub fn encodeFTEID(writer: *Writer, fteid: ie.FTEID) MarshalError!void {
 pub fn decodeFTEID(reader: *Reader, length: u16) MarshalError!ie.FTEID {
     if (length < 5) return MarshalError.InvalidLength; // At least flags + TEID
 
+    // Decode flags (3GPP TS 29.244 Section 8.2.3)
+    // Bit 0: V4, Bit 1: V6, Bit 2: CH, Bit 3: CHID (bits 4-7 spare)
     const flags_byte = try reader.readByte();
-    const v4 = (flags_byte & 0x08) != 0;
-    const v6 = (flags_byte & 0x04) != 0;
-    const ch = (flags_byte & 0x02) != 0;
-    const chid = (flags_byte & 0x01) != 0;
+    const v4 = (flags_byte & 0x01) != 0; // V4 at bit 0
+    const v6 = (flags_byte & 0x02) != 0; // V6 at bit 1
+    const ch = (flags_byte & 0x04) != 0; // CH at bit 2
+    const chid = (flags_byte & 0x08) != 0; // CHID at bit 3
 
     const teid = try reader.readU32();
 
@@ -466,14 +469,15 @@ pub fn encodeUEIPAddress(writer: *Writer, ue_ip: ie.UEIPAddress) MarshalError!vo
     const start_pos = writer.pos;
     try writer.skip(4); // Reserve space for header
 
-    // Encode flags
+    // Encode flags (3GPP TS 29.244 Section 8.2.62)
+    // Bit 0: Spare, Bit 1: V4, Bit 2: V6, Bit 3: S/D, Bit 4: IPv6D, Bit 5: CHV4, Bit 6: CHV6, Bit 7: IPV6PL
     var flags: u8 = 0;
-    if (ue_ip.flags.v4) flags |= 0x80;
-    if (ue_ip.flags.v6) flags |= 0x40;
-    if (ue_ip.flags.sd) flags |= 0x20;
-    if (ue_ip.flags.ipv6d) flags |= 0x10;
-    if (ue_ip.flags.chv4) flags |= 0x08;
-    if (ue_ip.flags.chv6) flags |= 0x04;
+    if (ue_ip.flags.v4) flags |= 0x02; // V4 at bit 1
+    if (ue_ip.flags.v6) flags |= 0x04; // V6 at bit 2
+    if (ue_ip.flags.sd) flags |= 0x08; // S/D at bit 3
+    if (ue_ip.flags.ipv6d) flags |= 0x10; // IPv6D at bit 4
+    if (ue_ip.flags.chv4) flags |= 0x20; // CHV4 at bit 5
+    if (ue_ip.flags.chv6) flags |= 0x40; // CHV6 at bit 6
     try writer.writeByte(flags);
 
     // Encode IP addresses
@@ -501,13 +505,15 @@ pub fn encodeUEIPAddress(writer: *Writer, ue_ip: ie.UEIPAddress) MarshalError!vo
 pub fn decodeUEIPAddress(reader: *Reader, length: u16) MarshalError!ie.UEIPAddress {
     if (length < 1) return MarshalError.InvalidLength;
 
+    // Decode flags (3GPP TS 29.244 Section 8.2.62)
+    // Bit 0: Spare, Bit 1: V4, Bit 2: V6, Bit 3: S/D, Bit 4: IPv6D, Bit 5: CHV4, Bit 6: CHV6, Bit 7: IPV6PL
     const flags_byte = try reader.readByte();
-    const v4 = (flags_byte & 0x80) != 0;
-    const v6 = (flags_byte & 0x40) != 0;
-    const sd = (flags_byte & 0x20) != 0;
-    const ipv6d = (flags_byte & 0x10) != 0;
-    const chv4 = (flags_byte & 0x08) != 0;
-    const chv6 = (flags_byte & 0x04) != 0;
+    const v4 = (flags_byte & 0x02) != 0; // V4 at bit 1
+    const v6 = (flags_byte & 0x04) != 0; // V6 at bit 2
+    const sd = (flags_byte & 0x08) != 0; // S/D at bit 3
+    const ipv6d = (flags_byte & 0x10) != 0; // IPv6D at bit 4
+    const chv4 = (flags_byte & 0x20) != 0; // CHV4 at bit 5
+    const chv6 = (flags_byte & 0x40) != 0; // CHV6 at bit 6
 
     var ipv4: ?[4]u8 = null;
     var ipv6: ?[16]u8 = null;
