@@ -234,7 +234,7 @@ pub const SessionModificationResponse = struct {
     created_pdr: ?[]const CreatedPDR = null,
     load_control_information: ?[]const u8 = null,
     overload_control_information: ?[]const u8 = null,
-    usage_report: ?[]const u8 = null, // Will be typed in Issue #3
+    usage_report: ?[]const ie.UsageReportSMR = null,
 
     pub fn init(cause: ie.Cause) SessionModificationResponse {
         return .{ .cause = cause };
@@ -247,6 +247,12 @@ pub const SessionModificationResponse = struct {
     pub fn withCreatedPDR(self: SessionModificationResponse, pdrs: []const CreatedPDR) SessionModificationResponse {
         var result = self;
         result.created_pdr = pdrs;
+        return result;
+    }
+
+    pub fn withUsageReport(self: SessionModificationResponse, reports: []const ie.UsageReportSMR) SessionModificationResponse {
+        var result = self;
+        result.usage_report = reports;
         return result;
     }
 };
@@ -263,7 +269,7 @@ pub const SessionDeletionResponse = struct {
     cause: ie.Cause,
     load_control_information: ?[]const u8 = null,
     overload_control_information: ?[]const u8 = null,
-    usage_report: ?[]const u8 = null,
+    usage_report: ?[]const ie.UsageReportSDR = null,
 
     pub fn init(cause: ie.Cause) SessionDeletionResponse {
         return .{ .cause = cause };
@@ -271,6 +277,87 @@ pub const SessionDeletionResponse = struct {
 
     pub fn accepted() SessionDeletionResponse {
         return .{ .cause = ie.Cause.accepted() };
+    }
+
+    pub fn withUsageReport(self: SessionDeletionResponse, reports: []const ie.UsageReportSDR) SessionDeletionResponse {
+        var result = self;
+        result.usage_report = reports;
+        return result;
+    }
+};
+
+/// Session Report Request (3GPP TS 29.244 Section 7.5.8.1)
+/// Sent from UPF to SMF to report usage, events, or errors
+pub const SessionReportRequest = struct {
+    report_type: ie.ReportType,
+    usage_report: ?[]const ie.UsageReportSRR = null,
+    downlink_data_report: ?ie.DownlinkDataReport = null,
+    error_indication_report: ?ie.ErrorIndicationReport = null,
+    load_control_information: ?[]const u8 = null,
+    overload_control_information: ?[]const u8 = null,
+
+    pub fn init(report_type: ie.ReportType) SessionReportRequest {
+        return .{ .report_type = report_type };
+    }
+
+    pub fn usageReport(reports: []const ie.UsageReportSRR) SessionReportRequest {
+        return .{
+            .report_type = ie.ReportType.usageReport(),
+            .usage_report = reports,
+        };
+    }
+
+    pub fn downlinkData(report: ie.DownlinkDataReport) SessionReportRequest {
+        return .{
+            .report_type = ie.ReportType.downlinkDataReport(),
+            .downlink_data_report = report,
+        };
+    }
+
+    pub fn errorIndication(report: ie.ErrorIndicationReport) SessionReportRequest {
+        return .{
+            .report_type = ie.ReportType.errorIndicationReport(),
+            .error_indication_report = report,
+        };
+    }
+
+    pub fn withUsageReport(self: SessionReportRequest, reports: []const ie.UsageReportSRR) SessionReportRequest {
+        var result = self;
+        result.usage_report = reports;
+        return result;
+    }
+
+    pub fn withDownlinkDataReport(self: SessionReportRequest, report: ie.DownlinkDataReport) SessionReportRequest {
+        var result = self;
+        result.downlink_data_report = report;
+        return result;
+    }
+};
+
+/// Session Report Response (3GPP TS 29.244 Section 7.5.8.2)
+/// Sent from SMF to UPF acknowledging Session Report Request
+pub const SessionReportResponse = struct {
+    cause: ie.Cause,
+    offending_ie: ?u16 = null,
+    load_control_information: ?[]const u8 = null,
+    overload_control_information: ?[]const u8 = null,
+
+    pub fn init(cause: ie.Cause) SessionReportResponse {
+        return .{ .cause = cause };
+    }
+
+    pub fn accepted() SessionReportResponse {
+        return .{ .cause = ie.Cause.accepted() };
+    }
+
+    pub fn rejected(cause: types.CauseValue) SessionReportResponse {
+        return .{ .cause = ie.Cause.init(cause) };
+    }
+
+    pub fn withOffendingIE(self: SessionReportResponse, ie_type: u16) SessionReportResponse {
+        var result = self;
+        result.offending_ie = ie_type;
+        return result;
     }
 };
 
@@ -406,4 +493,81 @@ test "Session modification request" {
     try std.testing.expect(request.remove_pdr != null);
     try std.testing.expectEqual(@as(usize, 1), request.remove_pdr.?.len);
     try std.testing.expectEqual(@as(u16, 1), request.remove_pdr.?[0].rule_id);
+}
+
+// ============================================================================
+// Phase 6 Tests: Session Report Request/Response
+// ============================================================================
+
+test "Session Report Request with usage report" {
+    const urr_id = ie.URRID.init(1);
+    const ur_seqn = ie.URSeqn.init(100);
+    const trigger = ie.UsageReportTrigger.periodic();
+    const vm = ie.VolumeMeasurement.initTotal(1_000_000_000);
+
+    const usage_report = ie.UsageReportSRR.init(urr_id, ur_seqn, trigger)
+        .withVolumeMeasurement(vm);
+
+    const reports = [_]ie.UsageReportSRR{usage_report};
+    const request = SessionReportRequest.usageReport(&reports);
+
+    try std.testing.expect(request.report_type.flags.usar);
+    try std.testing.expect(request.usage_report != null);
+    try std.testing.expectEqual(@as(usize, 1), request.usage_report.?.len);
+}
+
+test "Session Report Request with downlink data report" {
+    const pdr_id = ie.PDRID.init(5);
+    const dl_report = ie.DownlinkDataReport.init().withPdrId(pdr_id);
+
+    const request = SessionReportRequest.downlinkData(dl_report);
+
+    try std.testing.expect(request.report_type.flags.dldr);
+    try std.testing.expect(request.downlink_data_report != null);
+    try std.testing.expectEqual(@as(u16, 5), request.downlink_data_report.?.pdr_id.?.rule_id);
+}
+
+test "Session Report Response accepted" {
+    const response = SessionReportResponse.accepted();
+    try std.testing.expect(response.cause.cause.isAccepted());
+}
+
+test "Session Report Response rejected" {
+    const response = SessionReportResponse.rejected(.session_context_not_found);
+    try std.testing.expect(!response.cause.cause.isAccepted());
+    try std.testing.expectEqual(types.CauseValue.session_context_not_found, response.cause.cause);
+}
+
+test "Session Deletion Response with usage report" {
+    const urr_id = ie.URRID.init(1);
+    const ur_seqn = ie.URSeqn.init(50);
+    const trigger = ie.UsageReportTrigger.terminationReport();
+    const vm = ie.VolumeMeasurement.initAll(5_000_000_000, 2_000_000_000, 3_000_000_000);
+
+    const usage_report = ie.UsageReportSDR.init(urr_id, ur_seqn, trigger)
+        .withVolumeMeasurement(vm);
+
+    const reports = [_]ie.UsageReportSDR{usage_report};
+    const response = SessionDeletionResponse.accepted().withUsageReport(&reports);
+
+    try std.testing.expect(response.cause.cause.isAccepted());
+    try std.testing.expect(response.usage_report != null);
+    try std.testing.expectEqual(@as(usize, 1), response.usage_report.?.len);
+}
+
+test "Session Modification Response with usage report" {
+    const urr_id = ie.URRID.init(3);
+    const ur_seqn = ie.URSeqn.init(25);
+    const trigger = ie.UsageReportTrigger.immediateReport();
+    const dm = ie.DurationMeasurement.init(1800);
+
+    const usage_report = ie.UsageReportSMR.init(urr_id, ur_seqn, trigger)
+        .withDurationMeasurement(dm);
+
+    const reports = [_]ie.UsageReportSMR{usage_report};
+    const response = SessionModificationResponse.accepted().withUsageReport(&reports);
+
+    try std.testing.expect(response.cause.cause.isAccepted());
+    try std.testing.expect(response.usage_report != null);
+    try std.testing.expectEqual(@as(usize, 1), response.usage_report.?.len);
 }
