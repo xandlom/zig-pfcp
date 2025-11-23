@@ -184,7 +184,7 @@ pub const IEType = enum(u16) {
     recovery_time_stamp = 96,
     dl_flow_level_marking = 97,
     header_enrichment = 98,
-    traffic_endpoint_id = 99,
+    error_indication_report = 99,
     measurement_information = 100,
     // IE types 101-123 (3GPP TS 29.244 Section 8.2)
     node_report_type = 101,
@@ -217,7 +217,7 @@ pub const IEType = enum(u16) {
     nwi = 127, // Network Instance
     alternative_smf_ip_address = 129,
     packet_replication_and_detection_carry_on_information = 130,
-    smf_set_id = 131,
+    traffic_endpoint_id = 131,
     quota_validity_time = 132,
     number_of_reports = 133,
     pfcp_session_retention_information = 134,

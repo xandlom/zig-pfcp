@@ -1103,6 +1103,413 @@ pub const CreateTrafficEndpoint = struct {
     }
 };
 
+// ============================================================================
+// Phase 6: Usage Reporting IEs (Issue #3)
+// ============================================================================
+
+/// Volume Measurement IE (3GPP TS 29.244 Section 8.2.40)
+/// Reports measured traffic volumes (bytes and packets)
+pub const VolumeMeasurement = struct {
+    flags: packed struct {
+        tovol: bool = false, // Total Volume present
+        ulvol: bool = false, // Uplink Volume present
+        dlvol: bool = false, // Downlink Volume present
+        tonop: bool = false, // Total Number of Packets present
+        ulnop: bool = false, // Uplink Number of Packets present
+        dlnop: bool = false, // Downlink Number of Packets present
+        _spare: u2 = 0,
+    },
+    total_volume: ?u64 = null,
+    uplink_volume: ?u64 = null,
+    downlink_volume: ?u64 = null,
+    total_packets: ?u64 = null,
+    uplink_packets: ?u64 = null,
+    downlink_packets: ?u64 = null,
+
+    pub fn init() VolumeMeasurement {
+        return .{ .flags = .{} };
+    }
+
+    pub fn initTotal(total_bytes: u64) VolumeMeasurement {
+        return .{
+            .flags = .{ .tovol = true },
+            .total_volume = total_bytes,
+        };
+    }
+
+    pub fn initUplinkDownlink(ul_bytes: u64, dl_bytes: u64) VolumeMeasurement {
+        return .{
+            .flags = .{ .ulvol = true, .dlvol = true },
+            .uplink_volume = ul_bytes,
+            .downlink_volume = dl_bytes,
+        };
+    }
+
+    pub fn initAll(total: u64, ul: u64, dl: u64) VolumeMeasurement {
+        return .{
+            .flags = .{ .tovol = true, .ulvol = true, .dlvol = true },
+            .total_volume = total,
+            .uplink_volume = ul,
+            .downlink_volume = dl,
+        };
+    }
+
+    pub fn withPackets(self: VolumeMeasurement, total_pkts: ?u64, ul_pkts: ?u64, dl_pkts: ?u64) VolumeMeasurement {
+        var result = self;
+        if (total_pkts) |t| {
+            result.flags.tonop = true;
+            result.total_packets = t;
+        }
+        if (ul_pkts) |u| {
+            result.flags.ulnop = true;
+            result.uplink_packets = u;
+        }
+        if (dl_pkts) |d| {
+            result.flags.dlnop = true;
+            result.downlink_packets = d;
+        }
+        return result;
+    }
+};
+
+/// Duration Measurement IE (3GPP TS 29.244 Section 8.2.41)
+/// Reports measured session/measurement duration in seconds
+pub const DurationMeasurement = struct {
+    duration: u32, // Duration in seconds
+
+    pub fn init(duration: u32) DurationMeasurement {
+        return .{ .duration = duration };
+    }
+};
+
+/// Time of First Packet IE (3GPP TS 29.244 Section 8.2.42)
+/// NTP timestamp of when first packet was detected
+pub const TimeOfFirstPacket = struct {
+    timestamp: u32, // NTP timestamp (seconds since 1900-01-01)
+
+    pub fn init(timestamp: u32) TimeOfFirstPacket {
+        return .{ .timestamp = timestamp };
+    }
+
+    pub fn fromUnixTime(unix_time: i64) TimeOfFirstPacket {
+        const ntp_offset: i64 = 2208988800;
+        return .{ .timestamp = @intCast(unix_time + ntp_offset) };
+    }
+};
+
+/// Time of Last Packet IE (3GPP TS 29.244 Section 8.2.43)
+/// NTP timestamp of when last packet was detected
+pub const TimeOfLastPacket = struct {
+    timestamp: u32, // NTP timestamp (seconds since 1900-01-01)
+
+    pub fn init(timestamp: u32) TimeOfLastPacket {
+        return .{ .timestamp = timestamp };
+    }
+
+    pub fn fromUnixTime(unix_time: i64) TimeOfLastPacket {
+        const ntp_offset: i64 = 2208988800;
+        return .{ .timestamp = @intCast(unix_time + ntp_offset) };
+    }
+};
+
+/// Start Time IE (3GPP TS 29.244 Section 8.2.44)
+/// NTP timestamp of measurement period start
+pub const StartTime = struct {
+    timestamp: u32, // NTP timestamp
+
+    pub fn init(timestamp: u32) StartTime {
+        return .{ .timestamp = timestamp };
+    }
+
+    pub fn fromUnixTime(unix_time: i64) StartTime {
+        const ntp_offset: i64 = 2208988800;
+        return .{ .timestamp = @intCast(unix_time + ntp_offset) };
+    }
+};
+
+/// End Time IE (3GPP TS 29.244 Section 8.2.45)
+/// NTP timestamp of measurement period end
+pub const EndTime = struct {
+    timestamp: u32, // NTP timestamp
+
+    pub fn init(timestamp: u32) EndTime {
+        return .{ .timestamp = timestamp };
+    }
+
+    pub fn fromUnixTime(unix_time: i64) EndTime {
+        const ntp_offset: i64 = 2208988800;
+        return .{ .timestamp = @intCast(unix_time + ntp_offset) };
+    }
+};
+
+/// UR-SEQN (Usage Report Sequence Number) IE (3GPP TS 29.244 Section 8.2.46)
+/// Sequence number for usage reports
+pub const URSeqn = struct {
+    sequence_number: u32,
+
+    pub fn init(seq: u32) URSeqn {
+        return .{ .sequence_number = seq };
+    }
+};
+
+/// Usage Report Trigger IE (3GPP TS 29.244 Section 8.2.47)
+/// Indicates what triggered the usage report
+pub const UsageReportTrigger = struct {
+    flags: packed struct {
+        // First byte
+        perio: bool = false, // Periodic Reporting
+        volth: bool = false, // Volume Threshold
+        timth: bool = false, // Time Threshold
+        quhti: bool = false, // Quota Holding Time
+        start: bool = false, // Start of Traffic
+        stopt: bool = false, // Stop of Traffic
+        droth: bool = false, // Dropped DL Traffic Threshold
+        immer: bool = false, // Immediate Report
+        // Second byte
+        volqu: bool = false, // Volume Quota
+        timqu: bool = false, // Time Quota
+        liusa: bool = false, // Linked Usage Reporting
+        termr: bool = false, // Termination Report
+        monit: bool = false, // Monitoring Time
+        envcl: bool = false, // Envelope Closure
+        macar: bool = false, // MAC Addresses Reporting
+        eveth: bool = false, // Event Threshold
+        // Third byte
+        evequ: bool = false, // Event Quota
+        tebur: bool = false, // Termination By UP Function Report
+        ipmjl: bool = false, // IP Multicast Join/Leave
+        quvti: bool = false, // Quota Validity Time
+        emrre: bool = false, // End Marker Receipt Report
+        _spare: u3 = 0,
+    },
+
+    pub fn init() UsageReportTrigger {
+        return .{ .flags = .{} };
+    }
+
+    pub fn periodic() UsageReportTrigger {
+        return .{ .flags = .{ .perio = true } };
+    }
+
+    pub fn volumeThreshold() UsageReportTrigger {
+        return .{ .flags = .{ .volth = true } };
+    }
+
+    pub fn timeThreshold() UsageReportTrigger {
+        return .{ .flags = .{ .timth = true } };
+    }
+
+    pub fn terminationReport() UsageReportTrigger {
+        return .{ .flags = .{ .termr = true } };
+    }
+
+    pub fn immediateReport() UsageReportTrigger {
+        return .{ .flags = .{ .immer = true } };
+    }
+
+    pub fn volumeQuota() UsageReportTrigger {
+        return .{ .flags = .{ .volqu = true } };
+    }
+
+    pub fn timeQuota() UsageReportTrigger {
+        return .{ .flags = .{ .timqu = true } };
+    }
+};
+
+/// Report Type IE (3GPP TS 29.244 Section 8.2.21)
+/// Indicates the type of report in a Session Report Request
+pub const ReportType = struct {
+    flags: packed struct {
+        dldr: bool = false, // Downlink Data Report
+        usar: bool = false, // Usage Report
+        erir: bool = false, // Error Indication Report
+        upir: bool = false, // User Plane Inactivity Report
+        tmir: bool = false, // TSC Management Information Report
+        sesr: bool = false, // Session Report
+        uisr: bool = false, // UL/DL Data Status Report
+        _spare: u1 = 0,
+    },
+
+    pub fn init() ReportType {
+        return .{ .flags = .{} };
+    }
+
+    pub fn usageReport() ReportType {
+        return .{ .flags = .{ .usar = true } };
+    }
+
+    pub fn downlinkDataReport() ReportType {
+        return .{ .flags = .{ .dldr = true } };
+    }
+
+    pub fn errorIndicationReport() ReportType {
+        return .{ .flags = .{ .erir = true } };
+    }
+};
+
+/// Usage Report (Session Report Request) IE (3GPP TS 29.244 Section 8.2.49)
+/// Grouped IE containing usage report data for SessionReportRequest
+pub const UsageReportSRR = struct {
+    urr_id: URRID,
+    ur_seqn: URSeqn,
+    usage_report_trigger: UsageReportTrigger,
+    start_time: ?StartTime = null,
+    end_time: ?EndTime = null,
+    volume_measurement: ?VolumeMeasurement = null,
+    duration_measurement: ?DurationMeasurement = null,
+    time_of_first_packet: ?TimeOfFirstPacket = null,
+    time_of_last_packet: ?TimeOfLastPacket = null,
+
+    pub fn init(urr_id: URRID, ur_seqn: URSeqn, trigger: UsageReportTrigger) UsageReportSRR {
+        return .{
+            .urr_id = urr_id,
+            .ur_seqn = ur_seqn,
+            .usage_report_trigger = trigger,
+        };
+    }
+
+    pub fn withVolumeMeasurement(self: UsageReportSRR, vm: VolumeMeasurement) UsageReportSRR {
+        var result = self;
+        result.volume_measurement = vm;
+        return result;
+    }
+
+    pub fn withDurationMeasurement(self: UsageReportSRR, dm: DurationMeasurement) UsageReportSRR {
+        var result = self;
+        result.duration_measurement = dm;
+        return result;
+    }
+
+    pub fn withTimeRange(self: UsageReportSRR, start: StartTime, end: EndTime) UsageReportSRR {
+        var result = self;
+        result.start_time = start;
+        result.end_time = end;
+        return result;
+    }
+
+    pub fn withPacketTimes(self: UsageReportSRR, first: TimeOfFirstPacket, last: TimeOfLastPacket) UsageReportSRR {
+        var result = self;
+        result.time_of_first_packet = first;
+        result.time_of_last_packet = last;
+        return result;
+    }
+};
+
+/// Usage Report (Session Deletion Response) IE (3GPP TS 29.244 Section 8.2.50)
+/// Grouped IE containing usage report data for SessionDeletionResponse
+pub const UsageReportSDR = struct {
+    urr_id: URRID,
+    ur_seqn: URSeqn,
+    usage_report_trigger: UsageReportTrigger,
+    start_time: ?StartTime = null,
+    end_time: ?EndTime = null,
+    volume_measurement: ?VolumeMeasurement = null,
+    duration_measurement: ?DurationMeasurement = null,
+    time_of_first_packet: ?TimeOfFirstPacket = null,
+    time_of_last_packet: ?TimeOfLastPacket = null,
+
+    pub fn init(urr_id: URRID, ur_seqn: URSeqn, trigger: UsageReportTrigger) UsageReportSDR {
+        return .{
+            .urr_id = urr_id,
+            .ur_seqn = ur_seqn,
+            .usage_report_trigger = trigger,
+        };
+    }
+
+    pub fn withVolumeMeasurement(self: UsageReportSDR, vm: VolumeMeasurement) UsageReportSDR {
+        var result = self;
+        result.volume_measurement = vm;
+        return result;
+    }
+
+    pub fn withDurationMeasurement(self: UsageReportSDR, dm: DurationMeasurement) UsageReportSDR {
+        var result = self;
+        result.duration_measurement = dm;
+        return result;
+    }
+
+    pub fn withTimeRange(self: UsageReportSDR, start: StartTime, end: EndTime) UsageReportSDR {
+        var result = self;
+        result.start_time = start;
+        result.end_time = end;
+        return result;
+    }
+};
+
+/// Usage Report (Session Modification Response) IE (3GPP TS 29.244 Section 8.2.51)
+/// Grouped IE containing usage report data for SessionModificationResponse
+pub const UsageReportSMR = struct {
+    urr_id: URRID,
+    ur_seqn: URSeqn,
+    usage_report_trigger: UsageReportTrigger,
+    start_time: ?StartTime = null,
+    end_time: ?EndTime = null,
+    volume_measurement: ?VolumeMeasurement = null,
+    duration_measurement: ?DurationMeasurement = null,
+    time_of_first_packet: ?TimeOfFirstPacket = null,
+    time_of_last_packet: ?TimeOfLastPacket = null,
+
+    pub fn init(urr_id: URRID, ur_seqn: URSeqn, trigger: UsageReportTrigger) UsageReportSMR {
+        return .{
+            .urr_id = urr_id,
+            .ur_seqn = ur_seqn,
+            .usage_report_trigger = trigger,
+        };
+    }
+
+    pub fn withVolumeMeasurement(self: UsageReportSMR, vm: VolumeMeasurement) UsageReportSMR {
+        var result = self;
+        result.volume_measurement = vm;
+        return result;
+    }
+
+    pub fn withDurationMeasurement(self: UsageReportSMR, dm: DurationMeasurement) UsageReportSMR {
+        var result = self;
+        result.duration_measurement = dm;
+        return result;
+    }
+
+    pub fn withTimeRange(self: UsageReportSMR, start: StartTime, end: EndTime) UsageReportSMR {
+        var result = self;
+        result.start_time = start;
+        result.end_time = end;
+        return result;
+    }
+};
+
+/// Downlink Data Report IE (3GPP TS 29.244 Section 8.2.22)
+/// Grouped IE for downlink data notification
+pub const DownlinkDataReport = struct {
+    pdr_id: ?PDRID = null,
+    downlink_data_service_information: ?[]const u8 = null,
+
+    pub fn init() DownlinkDataReport {
+        return .{};
+    }
+
+    pub fn withPdrId(self: DownlinkDataReport, pdr_id: PDRID) DownlinkDataReport {
+        var result = self;
+        result.pdr_id = pdr_id;
+        return result;
+    }
+};
+
+/// Error Indication Report IE (3GPP TS 29.244 Section 8.2.23)
+/// Grouped IE for error indication reporting
+pub const ErrorIndicationReport = struct {
+    f_teid: ?FTEID = null,
+
+    pub fn init() ErrorIndicationReport {
+        return .{};
+    }
+
+    pub fn withFTeid(self: ErrorIndicationReport, f_teid: FTEID) ErrorIndicationReport {
+        var result = self;
+        result.f_teid = f_teid;
+        return result;
+    }
+};
+
 test "Recovery timestamp conversion" {
     const unix_time: i64 = 1609459200; // 2021-01-01 00:00:00 UTC
     const recovery = RecoveryTimeStamp.fromUnixTime(unix_time);
@@ -1542,4 +1949,119 @@ test "Create Traffic Endpoint for Ethernet" {
     try std.testing.expectEqual(endpoint_id, endpoint.traffic_endpoint_id);
     try std.testing.expect(endpoint.ethernet_pdu_session_information != null);
     try std.testing.expect(endpoint.ethernet_pdu_session_information.?.flags.ethi);
+}
+
+// ============================================================================
+// Phase 6 Tests: Usage Reporting IEs
+// ============================================================================
+
+test "Volume Measurement initialization" {
+    // Total volume only
+    const vm_total = VolumeMeasurement.initTotal(1_000_000_000);
+    try std.testing.expect(vm_total.flags.tovol);
+    try std.testing.expect(!vm_total.flags.ulvol);
+    try std.testing.expect(!vm_total.flags.dlvol);
+    try std.testing.expectEqual(@as(u64, 1_000_000_000), vm_total.total_volume.?);
+
+    // UL/DL volumes
+    const vm_ul_dl = VolumeMeasurement.initUplinkDownlink(500_000_000, 750_000_000);
+    try std.testing.expect(!vm_ul_dl.flags.tovol);
+    try std.testing.expect(vm_ul_dl.flags.ulvol);
+    try std.testing.expect(vm_ul_dl.flags.dlvol);
+    try std.testing.expectEqual(@as(u64, 500_000_000), vm_ul_dl.uplink_volume.?);
+    try std.testing.expectEqual(@as(u64, 750_000_000), vm_ul_dl.downlink_volume.?);
+
+    // All volumes with packet counts
+    const vm_all = VolumeMeasurement.initAll(1_250_000_000, 500_000_000, 750_000_000)
+        .withPackets(10000, 4000, 6000);
+    try std.testing.expect(vm_all.flags.tovol);
+    try std.testing.expect(vm_all.flags.ulvol);
+    try std.testing.expect(vm_all.flags.dlvol);
+    try std.testing.expect(vm_all.flags.tonop);
+    try std.testing.expect(vm_all.flags.ulnop);
+    try std.testing.expect(vm_all.flags.dlnop);
+    try std.testing.expectEqual(@as(u64, 10000), vm_all.total_packets.?);
+}
+
+test "Duration Measurement" {
+    const dm = DurationMeasurement.init(3600); // 1 hour
+    try std.testing.expectEqual(@as(u32, 3600), dm.duration);
+}
+
+test "Usage Report Trigger flags" {
+    const periodic = UsageReportTrigger.periodic();
+    try std.testing.expect(periodic.flags.perio);
+
+    const vol_th = UsageReportTrigger.volumeThreshold();
+    try std.testing.expect(vol_th.flags.volth);
+
+    const termination = UsageReportTrigger.terminationReport();
+    try std.testing.expect(termination.flags.termr);
+}
+
+test "Report Type flags" {
+    const usage = ReportType.usageReport();
+    try std.testing.expect(usage.flags.usar);
+    try std.testing.expect(!usage.flags.dldr);
+
+    const dldr = ReportType.downlinkDataReport();
+    try std.testing.expect(dldr.flags.dldr);
+    try std.testing.expect(!dldr.flags.usar);
+
+    const error_ind = ReportType.errorIndicationReport();
+    try std.testing.expect(error_ind.flags.erir);
+}
+
+test "Usage Report SRR with builder pattern" {
+    const urr_id = URRID.init(1);
+    const ur_seqn = URSeqn.init(100);
+    const trigger = UsageReportTrigger.periodic();
+    const start = StartTime.init(3818692800); // Some NTP timestamp
+    const end = EndTime.init(3818696400);
+    const vm = VolumeMeasurement.initAll(1_000_000_000, 400_000_000, 600_000_000);
+    const dm = DurationMeasurement.init(3600);
+
+    const report = UsageReportSRR.init(urr_id, ur_seqn, trigger)
+        .withVolumeMeasurement(vm)
+        .withDurationMeasurement(dm)
+        .withTimeRange(start, end);
+
+    try std.testing.expectEqual(@as(u32, 1), report.urr_id.urr_id);
+    try std.testing.expectEqual(@as(u32, 100), report.ur_seqn.sequence_number);
+    try std.testing.expect(report.usage_report_trigger.flags.perio);
+    try std.testing.expect(report.volume_measurement != null);
+    try std.testing.expect(report.duration_measurement != null);
+    try std.testing.expectEqual(@as(u32, 3600), report.duration_measurement.?.duration);
+    try std.testing.expect(report.start_time != null);
+    try std.testing.expect(report.end_time != null);
+}
+
+test "Usage Report SDR for session deletion" {
+    const urr_id = URRID.init(2);
+    const ur_seqn = URSeqn.init(50);
+    const trigger = UsageReportTrigger.terminationReport();
+    const vm = VolumeMeasurement.initTotal(5_000_000_000);
+
+    const report = UsageReportSDR.init(urr_id, ur_seqn, trigger)
+        .withVolumeMeasurement(vm);
+
+    try std.testing.expectEqual(@as(u32, 2), report.urr_id.urr_id);
+    try std.testing.expect(report.usage_report_trigger.flags.termr);
+    try std.testing.expect(report.volume_measurement != null);
+}
+
+test "Downlink Data Report" {
+    const pdr_id = PDRID.init(5);
+    const report = DownlinkDataReport.init().withPdrId(pdr_id);
+
+    try std.testing.expect(report.pdr_id != null);
+    try std.testing.expectEqual(@as(u16, 5), report.pdr_id.?.rule_id);
+}
+
+test "Error Indication Report" {
+    const f_teid = FTEID.initV4(0xDEADBEEF, [_]u8{ 192, 168, 1, 100 });
+    const report = ErrorIndicationReport.init().withFTeid(f_teid);
+
+    try std.testing.expect(report.f_teid != null);
+    try std.testing.expectEqual(@as(u32, 0xDEADBEEF), report.f_teid.?.teid);
 }

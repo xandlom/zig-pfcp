@@ -856,6 +856,141 @@ pub fn decodeSessionEstablishmentResponse(reader: *Reader, allocator: std.mem.Al
     return resp;
 }
 
+/// Encode Session Report Request message
+pub fn encodeSessionReportRequest(writer: *Writer, req: message.SessionReportRequest, seid: u64, sequence_number: u24) MarshalError!void {
+    const start_pos = writer.pos;
+    try writer.skip(16); // Reserve header space (with SEID)
+
+    // Report Type (mandatory)
+    try encodeReportType(writer, req.report_type);
+
+    // Usage Reports (conditional)
+    if (req.usage_report) |reports| {
+        for (reports) |report| {
+            try encodeUsageReportSRR(writer, report);
+        }
+    }
+
+    // Downlink Data Report (conditional)
+    if (req.downlink_data_report) |report| {
+        try encodeDownlinkDataReport(writer, report);
+    }
+
+    // Error Indication Report (conditional)
+    if (req.error_indication_report) |report| {
+        try encodeErrorIndicationReport(writer, report);
+    }
+
+    // Calculate and write header
+    const msg_length: u16 = @intCast(writer.pos - start_pos - 4);
+    const saved_pos = writer.pos;
+    writer.pos = start_pos;
+    var header = types.PfcpHeader.init(.session_report_request, true);
+    header.message_length = msg_length;
+    header.seid = seid;
+    header.sequence_number = sequence_number;
+    try encodePfcpHeader(writer, header);
+    writer.pos = saved_pos;
+}
+
+/// Decode Session Report Request message
+pub fn decodeSessionReportRequest(reader: *Reader, length: u16, allocator: std.mem.Allocator) MarshalError!message.SessionReportRequest {
+    const end_pos = reader.pos + length;
+
+    var report_type: ?ie.ReportType = null;
+    var usage_reports = std.ArrayList(ie.UsageReportSRR).init(allocator);
+    var downlink_data_report: ?ie.DownlinkDataReport = null;
+    var error_indication_report: ?ie.ErrorIndicationReport = null;
+
+    while (reader.pos < end_pos) {
+        const ie_header = try decodeIEHeader(reader);
+        const ie_type: types.IEType = @enumFromInt(ie_header.ie_type);
+
+        switch (ie_type) {
+            .report_type => report_type = try decodeReportType(reader, ie_header.length),
+            .usage_report_srr => {
+                const report = try decodeUsageReportSRR(reader, ie_header.length, allocator);
+                usage_reports.append(report) catch return MarshalError.OutOfMemory;
+            },
+            .downlink_data_report => downlink_data_report = try decodeDownlinkDataReport(reader, ie_header.length, allocator),
+            .error_indication_report => error_indication_report = try decodeErrorIndicationReport(reader, ie_header.length, allocator),
+            else => try reader.skip(ie_header.length),
+        }
+    }
+
+    if (report_type == null) {
+        return MarshalError.MissingMandatoryIE;
+    }
+
+    var req = message.SessionReportRequest.init(report_type.?);
+    if (usage_reports.items.len > 0) {
+        req.usage_report = usage_reports.toOwnedSlice() catch return MarshalError.OutOfMemory;
+    }
+    req.downlink_data_report = downlink_data_report;
+    req.error_indication_report = error_indication_report;
+    return req;
+}
+
+/// Encode Session Report Response message
+pub fn encodeSessionReportResponse(writer: *Writer, resp: message.SessionReportResponse, seid: u64, sequence_number: u24) MarshalError!void {
+    const start_pos = writer.pos;
+    try writer.skip(16); // Reserve header space (with SEID)
+
+    // Cause (mandatory)
+    try encodeCause(writer, resp.cause);
+
+    // Offending IE (conditional)
+    if (resp.offending_ie) |ie_type| {
+        try encodeIEHeader(writer, .offending_ie, 2);
+        try writer.writeU16(ie_type);
+    }
+
+    // Calculate and write header
+    const msg_length: u16 = @intCast(writer.pos - start_pos - 4);
+    const saved_pos = writer.pos;
+    writer.pos = start_pos;
+    var header = types.PfcpHeader.init(.session_report_response, true);
+    header.message_length = msg_length;
+    header.seid = seid;
+    header.sequence_number = sequence_number;
+    try encodePfcpHeader(writer, header);
+    writer.pos = saved_pos;
+}
+
+/// Decode Session Report Response message
+pub fn decodeSessionReportResponse(reader: *Reader, length: u16, allocator: std.mem.Allocator) MarshalError!message.SessionReportResponse {
+    _ = allocator;
+    const end_pos = reader.pos + length;
+
+    var cause: ?ie.Cause = null;
+    var offending_ie: ?u16 = null;
+
+    while (reader.pos < end_pos) {
+        const ie_header = try decodeIEHeader(reader);
+        const ie_type: types.IEType = @enumFromInt(ie_header.ie_type);
+
+        switch (ie_type) {
+            .cause => cause = try decodeCause(reader, ie_header.length),
+            .offending_ie => {
+                if (ie_header.length >= 2) {
+                    offending_ie = try reader.readU16();
+                } else {
+                    try reader.skip(ie_header.length);
+                }
+            },
+            else => try reader.skip(ie_header.length),
+        }
+    }
+
+    if (cause == null) {
+        return MarshalError.MissingMandatoryIE;
+    }
+
+    var resp = message.SessionReportResponse.init(cause.?);
+    resp.offending_ie = offending_ie;
+    return resp;
+}
+
 // ============================================================================
 // Simple IE Encoding/Decoding Functions for Grouped IE Support
 // ============================================================================
@@ -2022,6 +2157,600 @@ pub fn decodeCreateURR(reader: *Reader, length: u16, allocator: std.mem.Allocato
         .volume_threshold = volume_threshold,
         .time_threshold = time_threshold,
         .measurement_period = measurement_period,
+    };
+}
+
+// ============================================================================
+// Phase 6: Usage Reporting IEs Marshaling (Issue #3)
+// ============================================================================
+
+/// Encode Volume Measurement IE
+pub fn encodeVolumeMeasurement(writer: *Writer, vm: ie.VolumeMeasurement) MarshalError!void {
+    const start_pos = writer.pos;
+    try writer.skip(4); // Reserve header
+
+    // Encode flags byte
+    var flags: u8 = 0;
+    if (vm.flags.tovol) flags |= 0x01;
+    if (vm.flags.ulvol) flags |= 0x02;
+    if (vm.flags.dlvol) flags |= 0x04;
+    if (vm.flags.tonop) flags |= 0x08;
+    if (vm.flags.ulnop) flags |= 0x10;
+    if (vm.flags.dlnop) flags |= 0x20;
+    try writer.writeByte(flags);
+
+    // Encode volumes (8 bytes each, if present)
+    if (vm.total_volume) |v| try writer.writeU64(v);
+    if (vm.uplink_volume) |v| try writer.writeU64(v);
+    if (vm.downlink_volume) |v| try writer.writeU64(v);
+    if (vm.total_packets) |v| try writer.writeU64(v);
+    if (vm.uplink_packets) |v| try writer.writeU64(v);
+    if (vm.downlink_packets) |v| try writer.writeU64(v);
+
+    const ie_length: u16 = @intCast(writer.pos - start_pos - 4);
+    const saved_pos = writer.pos;
+    writer.pos = start_pos;
+    try encodeIEHeader(writer, .volume_measurement, ie_length);
+    writer.pos = saved_pos;
+}
+
+/// Decode Volume Measurement IE
+pub fn decodeVolumeMeasurement(reader: *Reader, length: u16) MarshalError!ie.VolumeMeasurement {
+    if (length < 1) return MarshalError.InvalidLength;
+
+    const flags_byte = try reader.readByte();
+    const tovol = (flags_byte & 0x01) != 0;
+    const ulvol = (flags_byte & 0x02) != 0;
+    const dlvol = (flags_byte & 0x04) != 0;
+    const tonop = (flags_byte & 0x08) != 0;
+    const ulnop = (flags_byte & 0x10) != 0;
+    const dlnop = (flags_byte & 0x20) != 0;
+
+    var result = ie.VolumeMeasurement{
+        .flags = .{
+            .tovol = tovol,
+            .ulvol = ulvol,
+            .dlvol = dlvol,
+            .tonop = tonop,
+            .ulnop = ulnop,
+            .dlnop = dlnop,
+        },
+    };
+
+    if (tovol) result.total_volume = try reader.readU64();
+    if (ulvol) result.uplink_volume = try reader.readU64();
+    if (dlvol) result.downlink_volume = try reader.readU64();
+    if (tonop) result.total_packets = try reader.readU64();
+    if (ulnop) result.uplink_packets = try reader.readU64();
+    if (dlnop) result.downlink_packets = try reader.readU64();
+
+    return result;
+}
+
+/// Encode Duration Measurement IE
+pub fn encodeDurationMeasurement(writer: *Writer, dm: ie.DurationMeasurement) MarshalError!void {
+    try encodeIEHeader(writer, .duration_measurement, 4);
+    try writer.writeU32(dm.duration);
+}
+
+/// Decode Duration Measurement IE
+pub fn decodeDurationMeasurement(reader: *Reader, length: u16) MarshalError!ie.DurationMeasurement {
+    if (length != 4) return MarshalError.InvalidLength;
+    return ie.DurationMeasurement{ .duration = try reader.readU32() };
+}
+
+/// Encode Time of First Packet IE
+pub fn encodeTimeOfFirstPacket(writer: *Writer, t: ie.TimeOfFirstPacket) MarshalError!void {
+    try encodeIEHeader(writer, .time_of_first_packet, 4);
+    try writer.writeU32(t.timestamp);
+}
+
+/// Decode Time of First Packet IE
+pub fn decodeTimeOfFirstPacket(reader: *Reader, length: u16) MarshalError!ie.TimeOfFirstPacket {
+    if (length != 4) return MarshalError.InvalidLength;
+    return ie.TimeOfFirstPacket{ .timestamp = try reader.readU32() };
+}
+
+/// Encode Time of Last Packet IE
+pub fn encodeTimeOfLastPacket(writer: *Writer, t: ie.TimeOfLastPacket) MarshalError!void {
+    try encodeIEHeader(writer, .time_of_last_packet, 4);
+    try writer.writeU32(t.timestamp);
+}
+
+/// Decode Time of Last Packet IE
+pub fn decodeTimeOfLastPacket(reader: *Reader, length: u16) MarshalError!ie.TimeOfLastPacket {
+    if (length != 4) return MarshalError.InvalidLength;
+    return ie.TimeOfLastPacket{ .timestamp = try reader.readU32() };
+}
+
+/// Encode Start Time IE
+pub fn encodeStartTime(writer: *Writer, t: ie.StartTime) MarshalError!void {
+    try encodeIEHeader(writer, .start_time, 4);
+    try writer.writeU32(t.timestamp);
+}
+
+/// Decode Start Time IE
+pub fn decodeStartTime(reader: *Reader, length: u16) MarshalError!ie.StartTime {
+    if (length != 4) return MarshalError.InvalidLength;
+    return ie.StartTime{ .timestamp = try reader.readU32() };
+}
+
+/// Encode End Time IE
+pub fn encodeEndTime(writer: *Writer, t: ie.EndTime) MarshalError!void {
+    try encodeIEHeader(writer, .end_time, 4);
+    try writer.writeU32(t.timestamp);
+}
+
+/// Decode End Time IE
+pub fn decodeEndTime(reader: *Reader, length: u16) MarshalError!ie.EndTime {
+    if (length != 4) return MarshalError.InvalidLength;
+    return ie.EndTime{ .timestamp = try reader.readU32() };
+}
+
+/// Encode UR-SEQN IE
+pub fn encodeURSeqn(writer: *Writer, seqn: ie.URSeqn) MarshalError!void {
+    try encodeIEHeader(writer, .ur_seqn, 4);
+    try writer.writeU32(seqn.sequence_number);
+}
+
+/// Decode UR-SEQN IE
+pub fn decodeURSeqn(reader: *Reader, length: u16) MarshalError!ie.URSeqn {
+    if (length != 4) return MarshalError.InvalidLength;
+    return ie.URSeqn{ .sequence_number = try reader.readU32() };
+}
+
+/// Encode Usage Report Trigger IE
+pub fn encodeUsageReportTrigger(writer: *Writer, trigger: ie.UsageReportTrigger) MarshalError!void {
+    try encodeIEHeader(writer, .usage_report_trigger, 3);
+
+    // First byte
+    var byte1: u8 = 0;
+    if (trigger.flags.perio) byte1 |= 0x01;
+    if (trigger.flags.volth) byte1 |= 0x02;
+    if (trigger.flags.timth) byte1 |= 0x04;
+    if (trigger.flags.quhti) byte1 |= 0x08;
+    if (trigger.flags.start) byte1 |= 0x10;
+    if (trigger.flags.stopt) byte1 |= 0x20;
+    if (trigger.flags.droth) byte1 |= 0x40;
+    if (trigger.flags.immer) byte1 |= 0x80;
+    try writer.writeByte(byte1);
+
+    // Second byte
+    var byte2: u8 = 0;
+    if (trigger.flags.volqu) byte2 |= 0x01;
+    if (trigger.flags.timqu) byte2 |= 0x02;
+    if (trigger.flags.liusa) byte2 |= 0x04;
+    if (trigger.flags.termr) byte2 |= 0x08;
+    if (trigger.flags.monit) byte2 |= 0x10;
+    if (trigger.flags.envcl) byte2 |= 0x20;
+    if (trigger.flags.macar) byte2 |= 0x40;
+    if (trigger.flags.eveth) byte2 |= 0x80;
+    try writer.writeByte(byte2);
+
+    // Third byte
+    var byte3: u8 = 0;
+    if (trigger.flags.evequ) byte3 |= 0x01;
+    if (trigger.flags.tebur) byte3 |= 0x02;
+    if (trigger.flags.ipmjl) byte3 |= 0x04;
+    if (trigger.flags.quvti) byte3 |= 0x08;
+    if (trigger.flags.emrre) byte3 |= 0x10;
+    try writer.writeByte(byte3);
+}
+
+/// Decode Usage Report Trigger IE
+pub fn decodeUsageReportTrigger(reader: *Reader, length: u16) MarshalError!ie.UsageReportTrigger {
+    if (length < 2) return MarshalError.InvalidLength;
+
+    const byte1 = try reader.readByte();
+    const byte2 = try reader.readByte();
+    var byte3: u8 = 0;
+    if (length >= 3) {
+        byte3 = try reader.readByte();
+    }
+
+    return ie.UsageReportTrigger{
+        .flags = .{
+            .perio = (byte1 & 0x01) != 0,
+            .volth = (byte1 & 0x02) != 0,
+            .timth = (byte1 & 0x04) != 0,
+            .quhti = (byte1 & 0x08) != 0,
+            .start = (byte1 & 0x10) != 0,
+            .stopt = (byte1 & 0x20) != 0,
+            .droth = (byte1 & 0x40) != 0,
+            .immer = (byte1 & 0x80) != 0,
+            .volqu = (byte2 & 0x01) != 0,
+            .timqu = (byte2 & 0x02) != 0,
+            .liusa = (byte2 & 0x04) != 0,
+            .termr = (byte2 & 0x08) != 0,
+            .monit = (byte2 & 0x10) != 0,
+            .envcl = (byte2 & 0x20) != 0,
+            .macar = (byte2 & 0x40) != 0,
+            .eveth = (byte2 & 0x80) != 0,
+            .evequ = (byte3 & 0x01) != 0,
+            .tebur = (byte3 & 0x02) != 0,
+            .ipmjl = (byte3 & 0x04) != 0,
+            .quvti = (byte3 & 0x08) != 0,
+            .emrre = (byte3 & 0x10) != 0,
+        },
+    };
+}
+
+/// Encode Report Type IE
+pub fn encodeReportType(writer: *Writer, rt: ie.ReportType) MarshalError!void {
+    try encodeIEHeader(writer, .report_type, 1);
+
+    var flags: u8 = 0;
+    if (rt.flags.dldr) flags |= 0x01;
+    if (rt.flags.usar) flags |= 0x02;
+    if (rt.flags.erir) flags |= 0x04;
+    if (rt.flags.upir) flags |= 0x08;
+    if (rt.flags.tmir) flags |= 0x10;
+    if (rt.flags.sesr) flags |= 0x20;
+    if (rt.flags.uisr) flags |= 0x40;
+    try writer.writeByte(flags);
+}
+
+/// Decode Report Type IE
+pub fn decodeReportType(reader: *Reader, length: u16) MarshalError!ie.ReportType {
+    if (length != 1) return MarshalError.InvalidLength;
+
+    const flags = try reader.readByte();
+    return ie.ReportType{
+        .flags = .{
+            .dldr = (flags & 0x01) != 0,
+            .usar = (flags & 0x02) != 0,
+            .erir = (flags & 0x04) != 0,
+            .upir = (flags & 0x08) != 0,
+            .tmir = (flags & 0x10) != 0,
+            .sesr = (flags & 0x20) != 0,
+            .uisr = (flags & 0x40) != 0,
+        },
+    };
+}
+
+/// Encode Usage Report (Session Report Request) Grouped IE
+pub fn encodeUsageReportSRR(writer: *Writer, report: ie.UsageReportSRR) MarshalError!void {
+    const start_pos = writer.pos;
+    try writer.skip(4); // Reserve header
+
+    // URR ID (mandatory)
+    try encodeURRID(writer, report.urr_id);
+
+    // UR-SEQN (mandatory)
+    try encodeURSeqn(writer, report.ur_seqn);
+
+    // Usage Report Trigger (mandatory)
+    try encodeUsageReportTrigger(writer, report.usage_report_trigger);
+
+    // Start Time (optional)
+    if (report.start_time) |st| {
+        try encodeStartTime(writer, st);
+    }
+
+    // End Time (optional)
+    if (report.end_time) |et| {
+        try encodeEndTime(writer, et);
+    }
+
+    // Volume Measurement (optional)
+    if (report.volume_measurement) |vm| {
+        try encodeVolumeMeasurement(writer, vm);
+    }
+
+    // Duration Measurement (optional)
+    if (report.duration_measurement) |dm| {
+        try encodeDurationMeasurement(writer, dm);
+    }
+
+    // Time of First Packet (optional)
+    if (report.time_of_first_packet) |tfp| {
+        try encodeTimeOfFirstPacket(writer, tfp);
+    }
+
+    // Time of Last Packet (optional)
+    if (report.time_of_last_packet) |tlp| {
+        try encodeTimeOfLastPacket(writer, tlp);
+    }
+
+    const ie_length: u16 = @intCast(writer.pos - start_pos - 4);
+    const saved_pos = writer.pos;
+    writer.pos = start_pos;
+    try encodeIEHeader(writer, .usage_report_srr, ie_length);
+    writer.pos = saved_pos;
+}
+
+/// Decode Usage Report (Session Report Request) Grouped IE
+pub fn decodeUsageReportSRR(reader: *Reader, length: u16, allocator: std.mem.Allocator) MarshalError!ie.UsageReportSRR {
+    _ = allocator;
+    const end_pos = reader.pos + length;
+
+    var urr_id: ?ie.URRID = null;
+    var ur_seqn: ?ie.URSeqn = null;
+    var usage_report_trigger: ?ie.UsageReportTrigger = null;
+    var start_time: ?ie.StartTime = null;
+    var end_time: ?ie.EndTime = null;
+    var volume_measurement: ?ie.VolumeMeasurement = null;
+    var duration_measurement: ?ie.DurationMeasurement = null;
+    var time_of_first_packet: ?ie.TimeOfFirstPacket = null;
+    var time_of_last_packet: ?ie.TimeOfLastPacket = null;
+
+    while (reader.pos < end_pos) {
+        const ie_header = try decodeIEHeader(reader);
+        const ie_type: types.IEType = @enumFromInt(ie_header.ie_type);
+
+        switch (ie_type) {
+            .urr_id => urr_id = try decodeURRID(reader, ie_header.length),
+            .ur_seqn => ur_seqn = try decodeURSeqn(reader, ie_header.length),
+            .usage_report_trigger => usage_report_trigger = try decodeUsageReportTrigger(reader, ie_header.length),
+            .start_time => start_time = try decodeStartTime(reader, ie_header.length),
+            .end_time => end_time = try decodeEndTime(reader, ie_header.length),
+            .volume_measurement => volume_measurement = try decodeVolumeMeasurement(reader, ie_header.length),
+            .duration_measurement => duration_measurement = try decodeDurationMeasurement(reader, ie_header.length),
+            .time_of_first_packet => time_of_first_packet = try decodeTimeOfFirstPacket(reader, ie_header.length),
+            .time_of_last_packet => time_of_last_packet = try decodeTimeOfLastPacket(reader, ie_header.length),
+            else => try reader.skip(ie_header.length),
+        }
+    }
+
+    if (urr_id == null or ur_seqn == null or usage_report_trigger == null) {
+        return MarshalError.MissingMandatoryIE;
+    }
+
+    return ie.UsageReportSRR{
+        .urr_id = urr_id.?,
+        .ur_seqn = ur_seqn.?,
+        .usage_report_trigger = usage_report_trigger.?,
+        .start_time = start_time,
+        .end_time = end_time,
+        .volume_measurement = volume_measurement,
+        .duration_measurement = duration_measurement,
+        .time_of_first_packet = time_of_first_packet,
+        .time_of_last_packet = time_of_last_packet,
+    };
+}
+
+/// Encode Usage Report (Session Deletion Response) Grouped IE
+pub fn encodeUsageReportSDR(writer: *Writer, report: ie.UsageReportSDR) MarshalError!void {
+    const start_pos = writer.pos;
+    try writer.skip(4); // Reserve header
+
+    // URR ID (mandatory)
+    try encodeURRID(writer, report.urr_id);
+
+    // UR-SEQN (mandatory)
+    try encodeURSeqn(writer, report.ur_seqn);
+
+    // Usage Report Trigger (mandatory)
+    try encodeUsageReportTrigger(writer, report.usage_report_trigger);
+
+    // Optional fields
+    if (report.start_time) |st| try encodeStartTime(writer, st);
+    if (report.end_time) |et| try encodeEndTime(writer, et);
+    if (report.volume_measurement) |vm| try encodeVolumeMeasurement(writer, vm);
+    if (report.duration_measurement) |dm| try encodeDurationMeasurement(writer, dm);
+    if (report.time_of_first_packet) |tfp| try encodeTimeOfFirstPacket(writer, tfp);
+    if (report.time_of_last_packet) |tlp| try encodeTimeOfLastPacket(writer, tlp);
+
+    const ie_length: u16 = @intCast(writer.pos - start_pos - 4);
+    const saved_pos = writer.pos;
+    writer.pos = start_pos;
+    try encodeIEHeader(writer, .usage_report_sdr, ie_length);
+    writer.pos = saved_pos;
+}
+
+/// Decode Usage Report (Session Deletion Response) Grouped IE
+pub fn decodeUsageReportSDR(reader: *Reader, length: u16, allocator: std.mem.Allocator) MarshalError!ie.UsageReportSDR {
+    _ = allocator;
+    const end_pos = reader.pos + length;
+
+    var urr_id: ?ie.URRID = null;
+    var ur_seqn: ?ie.URSeqn = null;
+    var usage_report_trigger: ?ie.UsageReportTrigger = null;
+    var start_time: ?ie.StartTime = null;
+    var end_time: ?ie.EndTime = null;
+    var volume_measurement: ?ie.VolumeMeasurement = null;
+    var duration_measurement: ?ie.DurationMeasurement = null;
+    var time_of_first_packet: ?ie.TimeOfFirstPacket = null;
+    var time_of_last_packet: ?ie.TimeOfLastPacket = null;
+
+    while (reader.pos < end_pos) {
+        const ie_header = try decodeIEHeader(reader);
+        const ie_type: types.IEType = @enumFromInt(ie_header.ie_type);
+
+        switch (ie_type) {
+            .urr_id => urr_id = try decodeURRID(reader, ie_header.length),
+            .ur_seqn => ur_seqn = try decodeURSeqn(reader, ie_header.length),
+            .usage_report_trigger => usage_report_trigger = try decodeUsageReportTrigger(reader, ie_header.length),
+            .start_time => start_time = try decodeStartTime(reader, ie_header.length),
+            .end_time => end_time = try decodeEndTime(reader, ie_header.length),
+            .volume_measurement => volume_measurement = try decodeVolumeMeasurement(reader, ie_header.length),
+            .duration_measurement => duration_measurement = try decodeDurationMeasurement(reader, ie_header.length),
+            .time_of_first_packet => time_of_first_packet = try decodeTimeOfFirstPacket(reader, ie_header.length),
+            .time_of_last_packet => time_of_last_packet = try decodeTimeOfLastPacket(reader, ie_header.length),
+            else => try reader.skip(ie_header.length),
+        }
+    }
+
+    if (urr_id == null or ur_seqn == null or usage_report_trigger == null) {
+        return MarshalError.MissingMandatoryIE;
+    }
+
+    return ie.UsageReportSDR{
+        .urr_id = urr_id.?,
+        .ur_seqn = ur_seqn.?,
+        .usage_report_trigger = usage_report_trigger.?,
+        .start_time = start_time,
+        .end_time = end_time,
+        .volume_measurement = volume_measurement,
+        .duration_measurement = duration_measurement,
+        .time_of_first_packet = time_of_first_packet,
+        .time_of_last_packet = time_of_last_packet,
+    };
+}
+
+/// Encode Usage Report (Session Modification Response) Grouped IE
+pub fn encodeUsageReportSMR(writer: *Writer, report: ie.UsageReportSMR) MarshalError!void {
+    const start_pos = writer.pos;
+    try writer.skip(4); // Reserve header
+
+    // URR ID (mandatory)
+    try encodeURRID(writer, report.urr_id);
+
+    // UR-SEQN (mandatory)
+    try encodeURSeqn(writer, report.ur_seqn);
+
+    // Usage Report Trigger (mandatory)
+    try encodeUsageReportTrigger(writer, report.usage_report_trigger);
+
+    // Optional fields
+    if (report.start_time) |st| try encodeStartTime(writer, st);
+    if (report.end_time) |et| try encodeEndTime(writer, et);
+    if (report.volume_measurement) |vm| try encodeVolumeMeasurement(writer, vm);
+    if (report.duration_measurement) |dm| try encodeDurationMeasurement(writer, dm);
+    if (report.time_of_first_packet) |tfp| try encodeTimeOfFirstPacket(writer, tfp);
+    if (report.time_of_last_packet) |tlp| try encodeTimeOfLastPacket(writer, tlp);
+
+    const ie_length: u16 = @intCast(writer.pos - start_pos - 4);
+    const saved_pos = writer.pos;
+    writer.pos = start_pos;
+    try encodeIEHeader(writer, .usage_report_smr, ie_length);
+    writer.pos = saved_pos;
+}
+
+/// Decode Usage Report (Session Modification Response) Grouped IE
+pub fn decodeUsageReportSMR(reader: *Reader, length: u16, allocator: std.mem.Allocator) MarshalError!ie.UsageReportSMR {
+    _ = allocator;
+    const end_pos = reader.pos + length;
+
+    var urr_id: ?ie.URRID = null;
+    var ur_seqn: ?ie.URSeqn = null;
+    var usage_report_trigger: ?ie.UsageReportTrigger = null;
+    var start_time: ?ie.StartTime = null;
+    var end_time: ?ie.EndTime = null;
+    var volume_measurement: ?ie.VolumeMeasurement = null;
+    var duration_measurement: ?ie.DurationMeasurement = null;
+    var time_of_first_packet: ?ie.TimeOfFirstPacket = null;
+    var time_of_last_packet: ?ie.TimeOfLastPacket = null;
+
+    while (reader.pos < end_pos) {
+        const ie_header = try decodeIEHeader(reader);
+        const ie_type: types.IEType = @enumFromInt(ie_header.ie_type);
+
+        switch (ie_type) {
+            .urr_id => urr_id = try decodeURRID(reader, ie_header.length),
+            .ur_seqn => ur_seqn = try decodeURSeqn(reader, ie_header.length),
+            .usage_report_trigger => usage_report_trigger = try decodeUsageReportTrigger(reader, ie_header.length),
+            .start_time => start_time = try decodeStartTime(reader, ie_header.length),
+            .end_time => end_time = try decodeEndTime(reader, ie_header.length),
+            .volume_measurement => volume_measurement = try decodeVolumeMeasurement(reader, ie_header.length),
+            .duration_measurement => duration_measurement = try decodeDurationMeasurement(reader, ie_header.length),
+            .time_of_first_packet => time_of_first_packet = try decodeTimeOfFirstPacket(reader, ie_header.length),
+            .time_of_last_packet => time_of_last_packet = try decodeTimeOfLastPacket(reader, ie_header.length),
+            else => try reader.skip(ie_header.length),
+        }
+    }
+
+    if (urr_id == null or ur_seqn == null or usage_report_trigger == null) {
+        return MarshalError.MissingMandatoryIE;
+    }
+
+    return ie.UsageReportSMR{
+        .urr_id = urr_id.?,
+        .ur_seqn = ur_seqn.?,
+        .usage_report_trigger = usage_report_trigger.?,
+        .start_time = start_time,
+        .end_time = end_time,
+        .volume_measurement = volume_measurement,
+        .duration_measurement = duration_measurement,
+        .time_of_first_packet = time_of_first_packet,
+        .time_of_last_packet = time_of_last_packet,
+    };
+}
+
+/// Encode Downlink Data Report Grouped IE
+pub fn encodeDownlinkDataReport(writer: *Writer, report: ie.DownlinkDataReport) MarshalError!void {
+    const start_pos = writer.pos;
+    try writer.skip(4); // Reserve header
+
+    if (report.pdr_id) |pdr_id| {
+        try encodePDRID(writer, pdr_id);
+    }
+
+    // downlink_data_service_information is raw bytes if present
+    if (report.downlink_data_service_information) |info| {
+        try encodeIEHeader(writer, .downlink_data_service_information, @intCast(info.len));
+        try writer.writeBytes(info);
+    }
+
+    const ie_length: u16 = @intCast(writer.pos - start_pos - 4);
+    const saved_pos = writer.pos;
+    writer.pos = start_pos;
+    try encodeIEHeader(writer, .downlink_data_report, ie_length);
+    writer.pos = saved_pos;
+}
+
+/// Decode Downlink Data Report Grouped IE
+pub fn decodeDownlinkDataReport(reader: *Reader, length: u16, allocator: std.mem.Allocator) MarshalError!ie.DownlinkDataReport {
+    const end_pos = reader.pos + length;
+
+    var pdr_id: ?ie.PDRID = null;
+    var ddsi: ?[]const u8 = null;
+
+    while (reader.pos < end_pos) {
+        const ie_header = try decodeIEHeader(reader);
+        const ie_type: types.IEType = @enumFromInt(ie_header.ie_type);
+
+        switch (ie_type) {
+            .pdr_id => pdr_id = try decodePDRID(reader, ie_header.length),
+            .downlink_data_service_information => {
+                const bytes = try reader.readBytes(ie_header.length);
+                ddsi = try allocator.dupe(u8, bytes);
+            },
+            else => try reader.skip(ie_header.length),
+        }
+    }
+
+    return ie.DownlinkDataReport{
+        .pdr_id = pdr_id,
+        .downlink_data_service_information = ddsi,
+    };
+}
+
+/// Encode Error Indication Report Grouped IE
+pub fn encodeErrorIndicationReport(writer: *Writer, report: ie.ErrorIndicationReport) MarshalError!void {
+    const start_pos = writer.pos;
+    try writer.skip(4); // Reserve header
+
+    if (report.f_teid) |f_teid| {
+        try encodeFTEID(writer, f_teid);
+    }
+
+    const ie_length: u16 = @intCast(writer.pos - start_pos - 4);
+    const saved_pos = writer.pos;
+    writer.pos = start_pos;
+    try encodeIEHeader(writer, .error_indication_report, ie_length);
+    writer.pos = saved_pos;
+}
+
+/// Decode Error Indication Report Grouped IE
+pub fn decodeErrorIndicationReport(reader: *Reader, length: u16, allocator: std.mem.Allocator) MarshalError!ie.ErrorIndicationReport {
+    _ = allocator;
+    const end_pos = reader.pos + length;
+
+    var f_teid: ?ie.FTEID = null;
+
+    while (reader.pos < end_pos) {
+        const ie_header = try decodeIEHeader(reader);
+        const ie_type: types.IEType = @enumFromInt(ie_header.ie_type);
+
+        switch (ie_type) {
+            .f_teid => f_teid = try decodeFTEID(reader, ie_header.length),
+            else => try reader.skip(ie_header.length),
+        }
+    }
+
+    return ie.ErrorIndicationReport{
+        .f_teid = f_teid,
     };
 }
 
