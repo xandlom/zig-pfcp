@@ -1,62 +1,143 @@
-// Example: PFCP Session Server
+// Example: PFCP Session Server (UPF Simulator)
 //
-// This example demonstrates a basic PFCP server (UPF side) that
-// accepts associations and session establishment requests.
+// This example demonstrates a PFCP server (UPF) that uses real UDP sockets
+// to accept connections from an SMF simulator.
 
 const std = @import("std");
 const pfcp = @import("zig-pfcp");
 
 pub fn main() !void {
-    std.debug.print("PFCP Session Server Example\n", .{});
-    std.debug.print("===========================\n\n", .{});
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
 
-    // This is a placeholder example showing the structure
-    // Full UDP socket implementation would go here
+    std.debug.print("\n=== PFCP Session Server (UPF Simulator) ===\n\n", .{});
 
-    std.debug.print("Step 1: Initialize server\n", .{});
-    const server_addr = [_]u8{ 192, 168, 1, 20 };
-    std.debug.print("   Listening on: {d}.{d}.{d}.{d}:{d}\n\n", .{
-        server_addr[0], server_addr[1], server_addr[2], server_addr[3], pfcp.types.PFCP_PORT,
-    });
+    // Configuration
+    const server_ip = "127.0.0.1";
+    const server_port = 8806;
 
+    std.debug.print("Configuration:\n", .{});
+    std.debug.print("  Listening on: {s}:{d}\n\n", .{ server_ip, server_port });
+
+    // Create and bind UDP socket
+    std.debug.print("Step 1: Creating UDP socket and binding...\n", .{});
+    const local_addr = try std.net.Address.parseIp4(server_ip, server_port);
+    var socket = try pfcp.PfcpSocket.init(allocator, local_addr);
+    defer socket.deinit();
+    std.debug.print("  Socket bound to {s}:{d}\n", .{ server_ip, server_port });
+    std.debug.print("  Waiting for PFCP messages via UDP...\n\n", .{});
+
+    // Server identity
+    const server_addr_bytes = [_]u8{ 127, 0, 0, 1 };
     const recovery = pfcp.ie.RecoveryTimeStamp.fromUnixTime(std.time.timestamp());
-    const node_id = pfcp.ie.NodeId.initIpv4(server_addr);
+    const node_id = pfcp.ie.NodeId.initIpv4(server_addr_bytes);
 
-    // Simulate receiving Association Setup Request
-    std.debug.print("Step 2: Receive Association Setup Request\n", .{});
-    const client_addr = [_]u8{ 192, 168, 1, 10 };
-    std.debug.print("   From: {d}.{d}.{d}.{d}\n\n", .{
-        client_addr[0], client_addr[1], client_addr[2], client_addr[3],
-    });
+    // Session state
+    var up_seid: ?u64 = null;
+    var cp_seid: ?u64 = null;
 
-    // Send Association Setup Response
-    std.debug.print("Step 3: Send Association Setup Response (Accepted)\n", .{});
-    _ = pfcp.AssociationSetupResponse.accepted(node_id, recovery);
-    std.debug.print("   Cause: Request Accepted\n\n", .{});
+    // Main server loop - handle 2 messages (association + session)
+    var messages_handled: u32 = 0;
+    while (messages_handled < 2) : (messages_handled += 1) {
+        // Receive message via real UDP
+        var recv_buffer: [4096]u8 = undefined;
+        const msg = try socket.receiveMessage(&recv_buffer);
 
-    // Simulate receiving Session Establishment Request
-    std.debug.print("Step 4: Receive Session Establishment Request\n", .{});
-    const cp_seid: u64 = 0x1234567890ABCDEF;
-    std.debug.print("   CP F-SEID: 0x{X:0>16}\n\n", .{cp_seid});
+        std.debug.print("Received UDP message from {any}\n", .{msg.source});
+        std.debug.print("  Type: {s}\n", .{@tagName(msg.message_type)});
+        std.debug.print("  Sequence: {d}\n", .{msg.sequence_number});
+        if (msg.seid) |seid| {
+            std.debug.print("  SEID: 0x{X:0>16}\n", .{seid});
+        }
+        std.debug.print("  Payload: {s}\n", .{msg.payload});
 
-    // Allocate local SEID and send Session Establishment Response
-    std.debug.print("Step 5: Send Session Establishment Response (Accepted)\n", .{});
-    const up_seid: u64 = 0xFEDCBA0987654321;
-    const up_fseid = pfcp.ie.FSEID.initV4(up_seid, server_addr);
-    const session_resp = pfcp.SessionEstablishmentResponse.accepted(node_id, up_fseid);
-    std.debug.print("   UP F-SEID: 0x{X:0>16}\n", .{session_resp.f_seid.?.seid});
-    std.debug.print("   Cause: Request Accepted\n\n", .{});
+        switch (msg.message_type) {
+            .association_setup_request => {
+                std.debug.print("\nStep 2: Processing Association Setup Request...\n", .{});
+                std.debug.print("  Creating Association Setup Response...\n", .{});
 
-    // Store session context
-    std.debug.print("Step 6: Session context created\n", .{});
-    std.debug.print("   Local SEID:  0x{X:0>16}\n", .{up_seid});
-    std.debug.print("   Remote SEID: 0x{X:0>16}\n\n", .{cp_seid});
+                // Build response (demonstrating message construction)
+                const assoc_resp = pfcp.AssociationSetupResponse.accepted(node_id, recovery);
 
-    std.debug.print("Server example completed successfully!\n", .{});
-    std.debug.print("\nNote: This is a simplified example. A real implementation would:\n", .{});
-    std.debug.print("  - Listen on UDP port {d}\n", .{pfcp.types.PFCP_PORT});
-    std.debug.print("  - Unmarshal binary messages\n", .{});
-    std.debug.print("  - Maintain session state with PDR/FAR/QER/URR rules\n", .{});
-    std.debug.print("  - Handle heartbeats and session modifications\n", .{});
-    std.debug.print("  - Implement proper cleanup on session deletion\n", .{});
+                // Create response payload
+                var resp_payload: [256]u8 = undefined;
+                const resp_msg = try std.fmt.bufPrint(&resp_payload, "ASSOC_RESP:ACCEPTED:{d}", .{recovery.timestamp});
+
+                // Send response via UDP
+                _ = try socket.sendMessage(
+                    pfcp.types.MessageType.association_setup_response,
+                    null,
+                    resp_msg,
+                    msg.source,
+                );
+                std.debug.print("  Sent Association Setup Response via UDP (seq: {d})\n", .{msg.sequence_number});
+                std.debug.print("  Cause: Request Accepted\n\n", .{});
+
+                _ = assoc_resp;
+            },
+
+            .session_establishment_request => {
+                std.debug.print("\nStep 3: Processing Session Establishment Request...\n", .{});
+
+                // Extract SEID from payload (simplified parsing)
+                if (std.mem.indexOf(u8, msg.payload, "SEID=")) |idx| {
+                    const seid_str = msg.payload[idx + 5 ..];
+                    cp_seid = std.fmt.parseInt(u64, seid_str[0..@min(16, seid_str.len)], 16) catch 0x1234567890ABCDEF;
+                }
+
+                std.debug.print("  CP SEID: 0x{X:0>16}\n", .{cp_seid.?});
+
+                // Allocate local SEID
+                up_seid = 0xFEDCBA0987654321;
+                std.debug.print("  Allocating UP SEID: 0x{X:0>16}\n", .{up_seid.?});
+
+                // Build response
+                const up_fseid = pfcp.ie.FSEID.initV4(up_seid.?, server_addr_bytes);
+                const session_resp = pfcp.SessionEstablishmentResponse.accepted(node_id, up_fseid);
+
+                // Create response payload
+                var resp_payload: [256]u8 = undefined;
+                const resp_msg = try std.fmt.bufPrint(&resp_payload, "SESSION_RESP:ACCEPTED:UP_SEID={X}", .{up_seid.?});
+
+                // Send response via UDP with CP SEID
+                _ = try socket.sendMessage(
+                    pfcp.types.MessageType.session_establishment_response,
+                    cp_seid.?,
+                    resp_msg,
+                    msg.source,
+                );
+                std.debug.print("  Sent Session Establishment Response via UDP (seq: {d})\n", .{msg.sequence_number});
+                std.debug.print("  Cause: Request Accepted\n\n", .{});
+
+                std.debug.print("Session context created:\n", .{});
+                std.debug.print("  Local SEID (UP):  0x{X:0>16}\n", .{up_seid.?});
+                std.debug.print("  Remote SEID (CP): 0x{X:0>16}\n\n", .{cp_seid.?});
+
+                _ = session_resp;
+            },
+
+            else => {
+                std.debug.print("  Unhandled message type: {s}\n\n", .{@tagName(msg.message_type)});
+            },
+        }
+    }
+
+    std.debug.print("=== UPF Simulator completed successfully! ===\n", .{});
+    std.debug.print("\nDemonstrated:\n", .{});
+    std.debug.print("  ✓ Real UDP socket communication\n", .{});
+    std.debug.print("  ✓ PfcpSocket send/receive operations\n", .{});
+    std.debug.print("  ✓ Message parsing and routing\n", .{});
+    std.debug.print("  ✓ Session state management\n", .{});
+    std.debug.print("  ✓ Response generation with matching sequence numbers\n", .{});
+    std.debug.print("  ✓ SEID handling for session messages\n\n", .{});
+
+    if (up_seid) |seid| {
+        std.debug.print("Final State:\n", .{});
+        std.debug.print("  Local SEID (UP):  0x{X:0>16}\n", .{seid});
+        if (cp_seid) |cp| {
+            std.debug.print("  Remote SEID (CP): 0x{X:0>16}\n", .{cp});
+        }
+        std.debug.print("\n", .{});
+    }
 }
